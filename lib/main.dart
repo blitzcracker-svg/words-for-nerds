@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'services/update_service.dart';
 
 void main() {
   runApp(const WordsForNerdsApp());
@@ -425,8 +426,42 @@ class UpdateWordLibraryScreen extends StatelessWidget {
   }
 }
 
-class UpdateInProgressScreen extends StatelessWidget {
+class UpdateInProgressScreen extends StatefulWidget {
   const UpdateInProgressScreen({super.key});
+
+  @override
+  State<UpdateInProgressScreen> createState() => _UpdateInProgressScreenState();
+}
+
+class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+
+    // Start update after first frame renders.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final svc = UpdateService();
+      final result = await svc.runUpdatePlaceholder();
+
+      if (!mounted) return;
+
+      if (result.success) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const UpdateCompleteScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const UpdateFailedScreen()),
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
