@@ -49,7 +49,9 @@ const List<String> demoWords = [
 ];
 
 String randomDemoWord() => demoWords[Random().nextInt(demoWords.length)];
-
+void _openCloseApp(BuildContext context) {
+  Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
+}
 class LaunchScreen extends StatelessWidget {
   const LaunchScreen({super.key});
 
@@ -81,6 +83,7 @@ class LaunchScreen extends StatelessWidget {
     return _Frame(
       title: 'WORDS FOR NERDS',
       face: '(≧◡≦)',
+      onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
           '"Lexical evolution is a strange little mirror."',
@@ -95,13 +98,6 @@ class LaunchScreen extends StatelessWidget {
         _Btn('UPDATE WORD LIBRARY (LAST: 2026-02-20)', onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const UpdateWordLibraryScreen()));
         }),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
       ],
     );
   }
@@ -160,13 +156,6 @@ class WordScreen extends StatelessWidget {
         _Btn('HISTORY', onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
         }),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
       ],
     );
   }
@@ -241,13 +230,6 @@ class WordNotFoundScreen extends StatelessWidget {
         _Btn('HISTORY', onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
         }),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
       ],
     );
   }
@@ -256,7 +238,7 @@ class WordNotFoundScreen extends StatelessWidget {
 class RandomizerSettingsScreen extends StatelessWidget {
   const RandomizerSettingsScreen({super.key});
 
-  @override
+  @override)
   Widget build(BuildContext context) {
     return _Frame(
       title: 'RANDOMIZER SETTINGS',
@@ -276,17 +258,6 @@ class RandomizerSettingsScreen extends StatelessWidget {
         const Text('"Tiny constraints, enormous consequences."', textAlign: TextAlign.center),
         const SizedBox(height: 18),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
-      ],
-    );
-  }
-}
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
@@ -317,11 +288,6 @@ class HistoryScreen extends StatelessWidget {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const ClearHistoryConfirmScreen()));
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
           }),
         )
       ],
@@ -348,17 +314,6 @@ class ClearHistoryConfirmScreen extends StatelessWidget {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HistoryClearedScreen()));
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
-      ],
-    );
-  }
-}
 
 class HistoryClearedScreen extends StatelessWidget {
   const HistoryClearedScreen({super.key});
@@ -378,13 +333,6 @@ class HistoryClearedScreen extends StatelessWidget {
             (_) => false,
           );
         }),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
       ],
     );
   }
@@ -414,17 +362,6 @@ class UpdateWordLibraryScreen extends StatelessWidget {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const UpdateInProgressScreen()));
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
-      ],
-    );
-  }
-}
 
 class UpdateInProgressScreen extends StatefulWidget {
   const UpdateInProgressScreen({super.key});
@@ -502,17 +439,6 @@ class UpdateCompleteScreen extends StatelessWidget {
             (_) => false,
           );
         }),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
-      ],
-    );
-  }
-}
 
 class UpdateFailedScreen extends StatelessWidget {
   const UpdateFailedScreen({super.key});
@@ -537,13 +463,6 @@ class UpdateFailedScreen extends StatelessWidget {
             (_) => false,
           );
         }),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
-          }),
-        )
       ],
     );
   }
@@ -592,6 +511,11 @@ class _Frame extends StatelessWidget {
   final UnderlineStyle underlineStyle;
   final String face;
   final List<Widget> children;
+
+  /// If null, no floating Close App button is shown.
+  final VoidCallback? onCloseApp;
+
+  /// Use false for the “Downloading & Installing Words” screen.
   final bool showCloseApp;
 
   const _Frame({
@@ -599,14 +523,24 @@ class _Frame extends StatelessWidget {
     this.underlineStyle = UnderlineStyle.normal,
     this.face = '',
     required this.children,
+    this.onCloseApp,
     this.showCloseApp = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final underline = underlineStyle == UnderlineStyle.short ? '─────────' : '────────────────────';
+    final underline = underlineStyle == UnderlineStyle.short
+        ? '─────────'
+        : '────────────────────';
+
+    // Extra bottom padding so scroll content doesn’t hide under the floating button.
+    final bottomPad = (showCloseApp && onCloseApp != null) ? 90.0 : 18.0;
 
     return Scaffold(
+      floatingActionButton: (showCloseApp && onCloseApp != null)
+          ? _CornerBtn('CLOSE APP', onTap: onCloseApp!)
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -621,10 +555,15 @@ class _Frame extends StatelessWidget {
                 Text(face, textAlign: TextAlign.center),
               ],
               const SizedBox(height: 18),
+
+              // ✅ Scrollable content area — fixes overflow.
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: children,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: bottomPad),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: children,
+                  ),
                 ),
               ),
             ],
@@ -656,6 +595,27 @@ class _Btn extends StatelessWidget {
         onPressed: onTap,
         child: Text(text, textAlign: TextAlign.center),
       ),
+    );
+  }
+}
+
+class _CornerBtn extends StatelessWidget {
+  final String text;
+  final VoidCallback onTap;
+
+  const _CornerBtn(this.text, {required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF1A1C22),
+        foregroundColor: const Color(0xFFB86B6B),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      onPressed: onTap,
+      child: Text(text, textAlign: TextAlign.center),
     );
   }
 }
