@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'services/update_service.dart';
 
 void main() {
@@ -17,23 +18,20 @@ class WordsForNerdsApp extends StatelessWidget {
       debugShowCheckedModeBanner: true,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0E0F12),
-        textTheme: ThemeData.dark().textTheme.apply(
-              fontFamily: 'Times New Roman',
-            ),
+        textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Times New Roman'),
       ),
       home: const LaunchScreen(),
     );
   }
 }
 
-/// In-memory session state (does not clear when you switch apps).
+/// In-memory session state (does NOT clear when you switch apps).
 class SessionState {
   static final List<String> history = [];
   static String? lastWord;
 }
 
-/// Simple placeholder word pool for testing navigation.
-/// (We will replace this later with your real offline library + update flow.)
+/// Demo word pool (offline placeholder)
 const List<String> demoWords = [
   'EPHEMERAL',
   'ETHEREAL',
@@ -49,9 +47,40 @@ const List<String> demoWords = [
 ];
 
 String randomDemoWord() => demoWords[Random().nextInt(demoWords.length)];
+
 void _openCloseApp(BuildContext context) {
   Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
 }
+
+Future<String?> _promptForWord(BuildContext context) async {
+  final controller = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        title: const Text('SEARCH FOR A WORD'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+          decoration: const InputDecoration(hintText: 'Type a word'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('OK'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 class LaunchScreen extends StatelessWidget {
   const LaunchScreen({super.key});
 
@@ -117,6 +146,7 @@ class WordScreen extends StatelessWidget {
   void _search(BuildContext context) async {
     final result = await _promptForWord(context);
     if (result == null) return;
+
     final upper = result.trim().toUpperCase();
     if (upper.isEmpty) return;
 
@@ -134,7 +164,7 @@ class WordScreen extends StatelessWidget {
     return _Frame(
       title: word,
       underlineStyle: UnderlineStyle.short,
-      face: '',
+      onCloseApp: () => _openCloseApp(context),
       children: [
         _Btn('LISTEN TO WORD', onTap: () {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -161,23 +191,24 @@ class WordScreen extends StatelessWidget {
   }
 }
 
-class WordNotFoundScreen extends StatelessWidget {
+class WordNotFoundScreen extends StatefulWidget {
   final String typed;
   const WordNotFoundScreen({super.key, required this.typed});
 
-  List<String> _suggestions() {
-    // Placeholder suggestions (we’ll replace with real “did you mean” later).
-    return demoWords.toList();
-  }
+  @override
+  State<WordNotFoundScreen> createState() => _WordNotFoundScreenState();
+}
+
+class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
+  static const int pageSize = 5;
+  int pageIndex = 0;
+
+  List<String> get _suggestions => demoWords.toList();
 
   @override
   Widget build(BuildContext context) {
-    final suggestions = _suggestions();
-
-    // Paging: 5 per page (like history). For now we show page 1.
-    const pageSize = 5;
-    final totalPages = (suggestions.length / pageSize).ceil();
-    final pageIndex = 0;
+    final suggestions = _suggestions;
+    final totalPages = (suggestions.length / pageSize).ceil().clamp(1, 9999);
 
     final start = pageIndex * pageSize;
     final end = min(start + pageSize, suggestions.length);
@@ -186,24 +217,37 @@ class WordNotFoundScreen extends StatelessWidget {
     return _Frame(
       title: 'WORD NOT FOUND',
       face: '(o_O)   (._.)?',
+      onCloseApp: () => _openCloseApp(context),
       children: [
         const Text('Sorry, we didn’t find:', textAlign: TextAlign.center),
         const SizedBox(height: 10),
-        Text('"$typed"', textAlign: TextAlign.center),
+        Text('"${widget.typed}"', textAlign: TextAlign.center),
         const SizedBox(height: 14),
         const Text('Did you mean:', textAlign: TextAlign.center),
         const SizedBox(height: 10),
+
         if (totalPages > 1)
-          const Align(
-            alignment: Alignment.centerRight,
-            child: Text('[ ▶ ]'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (pageIndex > 0)
+                _MiniNavBtn('◀', onTap: () => setState(() => pageIndex--))
+              else
+                const SizedBox(width: 60),
+              if (pageIndex < totalPages - 1)
+                _MiniNavBtn('▶', onTap: () => setState(() => pageIndex++))
+              else
+                const SizedBox(width: 60),
+            ],
           ),
+
         for (final s in view)
           _Btn(s, onTap: () {
             SessionState.lastWord = s;
             if (!SessionState.history.contains(s)) SessionState.history.add(s);
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: s)));
           }),
+
         const SizedBox(height: 10),
         _Btn('RETURN TO SEARCH', onTap: () async {
           final result = await _promptForWord(context);
@@ -238,11 +282,12 @@ class WordNotFoundScreen extends StatelessWidget {
 class RandomizerSettingsScreen extends StatelessWidget {
   const RandomizerSettingsScreen({super.key});
 
-  @override)
+  @override
   Widget build(BuildContext context) {
     return _Frame(
       title: 'RANDOMIZER SETTINGS',
       face: '(－_－) z z z',
+      onCloseApp: () => _openCloseApp(context),
       children: [
         const Text('WORD LENGTH RANGE', textAlign: TextAlign.center),
         const SizedBox(height: 10),
@@ -258,27 +303,51 @@ class RandomizerSettingsScreen extends StatelessWidget {
         const Text('"Tiny constraints, enormous consequences."', textAlign: TextAlign.center),
         const SizedBox(height: 18),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
+      ],
+    );
+  }
+}
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  static const int pageSize = 5;
+  int pageIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final items = SessionState.history;
-    const pageSize = 5;
-    final showArrows = items.length > pageSize;
-    final visible = items.take(pageSize).toList();
+    final totalPages = (items.length / pageSize).ceil().clamp(1, 9999);
+
+    final start = pageIndex * pageSize;
+    final end = min(start + pageSize, items.length);
+    final view = items.sublist(start, end);
 
     return _Frame(
       title: 'HISTORY',
+      onCloseApp: () => _openCloseApp(context),
       children: [
-        if (showArrows)
-          const Align(
-            alignment: Alignment.centerRight,
-            child: Text('[ ▶ ]'),
+        if (totalPages > 1)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (pageIndex > 0)
+                _MiniNavBtn('◀', onTap: () => setState(() => pageIndex--))
+              else
+                const SizedBox(width: 60),
+              if (pageIndex < totalPages - 1)
+                _MiniNavBtn('▶', onTap: () => setState(() => pageIndex++))
+              else
+                const SizedBox(width: 60),
+            ],
           ),
         const SizedBox(height: 10),
-        for (final w in visible)
+        for (final w in view)
           _Btn(w, onTap: () {
             SessionState.lastWord = w;
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
@@ -288,8 +357,6 @@ class HistoryScreen extends StatelessWidget {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const ClearHistoryConfirmScreen()));
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
-          }),
-        )
       ],
     );
   }
@@ -303,6 +370,7 @@ class ClearHistoryConfirmScreen extends StatelessWidget {
     return _Frame(
       title: 'CLEAR HISTORY?',
       face: '(⊙_⊙;)   (ﾟoﾟ;;)   (꒪꒫꒪)',
+      onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
           '“Erase your super-generations from existence…\npermanently… with your finger… right now?”',
@@ -314,6 +382,10 @@ class ClearHistoryConfirmScreen extends StatelessWidget {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HistoryClearedScreen()));
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
+      ],
+    );
+  }
+}
 
 class HistoryClearedScreen extends StatelessWidget {
   const HistoryClearedScreen({super.key});
@@ -323,8 +395,12 @@ class HistoryClearedScreen extends StatelessWidget {
     return _Frame(
       title: 'HISTORY CLEARED',
       face: '(─‿─)   (｡-‿-｡)   (._.)',
+      onCloseApp: () => _openCloseApp(context),
       children: [
-        const Text('“Your lexical footprints have been gently\nun-footprinted.”', textAlign: TextAlign.center),
+        const Text(
+          '“Your lexical footprints have been gently\nun-footprinted.”',
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 14),
         _Btn('OKAY', onTap: () {
           Navigator.pushAndRemoveUntil(
@@ -346,6 +422,7 @@ class UpdateWordLibraryScreen extends StatelessWidget {
     return _Frame(
       title: 'UPDATE WORD LIBRARY',
       face: '(._.)?   (o_o)?   (?-?)',
+      onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
           'This will refresh words, definitions,\npronunciations, and add newly found entries.',
@@ -362,6 +439,10 @@ class UpdateWordLibraryScreen extends StatelessWidget {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const UpdateInProgressScreen()));
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
+      ],
+    );
+  }
+}
 
 class UpdateInProgressScreen extends StatefulWidget {
   const UpdateInProgressScreen({super.key});
@@ -379,7 +460,6 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
     if (_started) return;
     _started = true;
 
-    // Start update after first frame renders.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final svc = UpdateService();
       final result = await svc.runUpdatePlaceholder();
@@ -387,15 +467,9 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
       if (!mounted) return;
 
       if (result.success) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const UpdateCompleteScreen()),
-        );
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UpdateCompleteScreen()));
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const UpdateFailedScreen()),
-        );
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UpdateFailedScreen()));
       }
     });
   }
@@ -426,6 +500,7 @@ class UpdateCompleteScreen extends StatelessWidget {
     return _Frame(
       title: 'UPDATE COMPLETE',
       face: '(^_^)   (^-^)   (._.)',
+      onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
           '“Behold: refreshed definitions, newly found\nwords, and general lexical glow.”',
@@ -439,6 +514,10 @@ class UpdateCompleteScreen extends StatelessWidget {
             (_) => false,
           );
         }),
+      ],
+    );
+  }
+}
 
 class UpdateFailedScreen extends StatelessWidget {
   const UpdateFailedScreen({super.key});
@@ -448,6 +527,7 @@ class UpdateFailedScreen extends StatelessWidget {
     return _Frame(
       title: 'UPDATE DIDN’T WORK',
       face: '(x_x)   (o_o;)   (._.)',
+      onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
           '“The update tripped over its own vocabulary\nand face-planted into the concept of ‘no.’”',
@@ -476,6 +556,11 @@ class CloseAppScreen extends StatelessWidget {
     return _Frame(
       title: 'CLOSE APP',
       face: '( •︵• )   (｡•́︿•̀｡)   (づ_ど)',
+      onCloseApp: () {
+        SessionState.history.clear();
+        SessionState.lastWord = null;
+        SystemNavigator.pop();
+      },
       children: [
         const Text(
           '“I shall remain here, quietly holding the shape\nof your unfinished sentences, until you return.”',
@@ -488,15 +573,6 @@ class CloseAppScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
-        const Spacer(),
-        Align(
-          alignment: Alignment.bottomRight,
-          child: _Btn('CLOSE APP', small: true, onTap: () {
-            SessionState.history.clear();
-            SessionState.lastWord = null;
-            SystemNavigator.pop();
-          }),
-        )
       ],
     );
   }
@@ -512,10 +588,10 @@ class _Frame extends StatelessWidget {
   final String face;
   final List<Widget> children;
 
-  /// If null, no floating Close App button is shown.
+  /// If null, no floating Close App button.
   final VoidCallback? onCloseApp;
 
-  /// Use false for the “Downloading & Installing Words” screen.
+  /// Use false for update in-progress screen.
   final bool showCloseApp;
 
   const _Frame({
@@ -529,11 +605,7 @@ class _Frame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final underline = underlineStyle == UnderlineStyle.short
-        ? '─────────'
-        : '────────────────────';
-
-    // Extra bottom padding so scroll content doesn’t hide under the floating button.
+    final underline = underlineStyle == UnderlineStyle.short ? '─────────' : '────────────────────';
     final bottomPad = (showCloseApp && onCloseApp != null) ? 90.0 : 18.0;
 
     return Scaffold(
@@ -555,8 +627,6 @@ class _Frame extends StatelessWidget {
                 Text(face, textAlign: TextAlign.center),
               ],
               const SizedBox(height: 18),
-
-              // ✅ Scrollable content area — fixes overflow.
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.only(bottom: bottomPad),
@@ -620,6 +690,29 @@ class _CornerBtn extends StatelessWidget {
   }
 }
 
+class _MiniNavBtn extends StatelessWidget {
+  final String text;
+  final VoidCallback onTap;
+  const _MiniNavBtn(this.text, {required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 60,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF1A1C22),
+          foregroundColor: const Color(0xFFB86B6B),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        onPressed: onTap,
+        child: Text(text, textAlign: TextAlign.center),
+      ),
+    );
+  }
+}
+
 class _LabelBlock extends StatelessWidget {
   final String heading;
   final String body;
@@ -639,33 +732,4 @@ class _LabelBlock extends StatelessWidget {
       ),
     );
   }
-}
-
-Future<String?> _promptForWord(BuildContext context) async {
-  final controller = TextEditingController();
-  return showDialog<String>(
-    context: context,
-    builder: (ctx) {
-      return AlertDialog(
-        title: const Text('SEARCH FOR A WORD'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (v) => Navigator.of(ctx).pop(v),
-          decoration: const InputDecoration(hintText: 'Type a word'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('OK'),
-          ),
-        ],
-      );
-    },
-  );
 }
