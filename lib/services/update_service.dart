@@ -8,16 +8,31 @@ class UpdateResult {
 }
 
 class UpdateService {
+  /// Placeholder update:
+  /// - If device appears OFFLINE → return failure (so UpdateFailedScreen shows)
+  /// - If device appears ONLINE → return success (so UpdateCompleteScreen shows)
+  ///
+  /// No real dictionary downloading yet.
   Future<UpdateResult> runUpdatePlaceholder() async {
     NetworkGate.allowUpdateNetwork(true);
 
     HttpClient? client;
     try {
+      // Create the only allowed network client (gated)
       client = NetworkGate.createUpdateHttpClient();
-      return const UpdateResult(true, 'Update finished (offline placeholder).');
-    } catch (e) {
-      return UpdateResult(false, 'Update failed: $e');
+
+      // Minimal "are we online?" check.
+      // In airplane mode / no internet, this will typically throw or timeout.
+      await InternetAddress.lookup('example.com')
+          .timeout(const Duration(seconds: 4));
+
+      // Online → simulate success
+      return const UpdateResult(true, 'Online (placeholder update succeeded).');
+    } catch (_) {
+      // Offline/timeout/DNS failure → simulate failure
+      return const UpdateResult(false, 'Offline (placeholder update failed).');
     } finally {
+      // Force-close any sockets and lock networking back down
       try {
         client?.close(force: true);
       } catch (_) {}
