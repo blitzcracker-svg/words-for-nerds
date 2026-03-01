@@ -4,17 +4,11 @@ import 'package:flutter/services.dart';
 
 import 'services/update_service.dart';
 import 'services/library_service.dart';
+import 'models/word_entry.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Offline library load (safe during setup; won't crash if file isn't ready yet)
-  try {
-    await LibraryService.instance.initFromAsset();
-  } catch (_) {
-    // If assets/library.json isn't present yet, app can still run using demoWords
-  }
-
+  await LibraryService.instance.initFromAsset();
   runApp(const WordsForNerdsApp());
 }
 
@@ -40,21 +34,6 @@ class SessionState {
   static final List<String> history = [];
   static String? lastWord;
 }
-
-/// Demo word pool (offline placeholder)
-const List<String> demoWords = [
-  'EPHEMERAL',
-  'ETHEREAL',
-  'ZEPHYR',
-  'LABYRINTH',
-  'ZENITH',
-  'EFFERVESCENT',
-  'OBFUSCATE',
-  'PANACEA',
-  'MELLIFLUOUS',
-  'LIMINAL',
-  'SYCOPHANT',
-];
 
 void _openCloseApp(BuildContext context) {
   Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
@@ -89,11 +68,15 @@ Future<String?> _promptForWord(BuildContext context) async {
   );
 }
 
+List<String> _allWords() => LibraryService.instance.allWordsSorted();
+
+WordEntry? _entry(String word) => LibraryService.instance.lookup(word);
+
 /// Picks a random word that has NOT been used this session.
 /// Returns null when exhausted.
 String? _pickRandomUnusedWord() {
   final used = SessionState.history.toSet();
-  final remaining = demoWords.where((w) => !used.contains(w)).toList();
+  final remaining = _allWords().where((w) => !used.contains(w)).toList();
   if (remaining.isEmpty) return null;
   remaining.shuffle(Random());
   return remaining.first;
@@ -129,13 +112,16 @@ class LaunchScreen extends StatelessWidget {
     final result = await _promptForWord(context);
     if (result == null) return;
 
-    final upper = result.trim().toUpperCase();
-    if (upper.isEmpty) return;
+    final typed = result.trim();
+    if (typed.isEmpty) return;
 
-    if (demoWords.contains(upper)) {
-      SessionState.lastWord = upper;
-      if (!SessionState.history.contains(upper)) SessionState.history.add(upper);
-      Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: upper)));
+    final upper = typed.toUpperCase();
+    final e = _entry(upper);
+
+    if (e != null) {
+      SessionState.lastWord = e.word;
+      if (!SessionState.history.contains(e.word)) SessionState.history.add(e.word);
+      Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: e.word)));
     } else {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
     }
@@ -174,13 +160,16 @@ class WordScreen extends StatelessWidget {
     final result = await _promptForWord(context);
     if (result == null) return;
 
-    final upper = result.trim().toUpperCase();
-    if (upper.isEmpty) return;
+    final typed = result.trim();
+    if (typed.isEmpty) return;
 
-    if (demoWords.contains(upper)) {
-      SessionState.lastWord = upper;
-      if (!SessionState.history.contains(upper)) SessionState.history.add(upper);
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: upper)));
+    final upper = typed.toUpperCase();
+    final e = _entry(upper);
+
+    if (e != null) {
+      SessionState.lastWord = e.word;
+      if (!SessionState.history.contains(e.word)) SessionState.history.add(e.word);
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: e.word)));
     } else {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
     }
@@ -188,6 +177,14 @@ class WordScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final e = _entry(word);
+
+    final source = e?.source ?? 'Offline library';
+    final phonetic = e?.phonetic ?? '';
+    final definition = e?.definition ?? '';
+    final etymology = e?.etymology ?? '';
+    final example = e?.example ?? '';
+
     return _Frame(
       title: word,
       underlineStyle: UnderlineStyle.short,
@@ -199,11 +196,11 @@ class WordScreen extends StatelessWidget {
           );
         }),
         const SizedBox(height: 14),
-        const _LabelBlock(heading: 'DICTIONARY', body: 'Merriam-Webster'),
-        const _LabelBlock(heading: 'PHONETIC PRONUNCIATION', body: 'ih-FEM-uh-rəl'),
-        const _LabelBlock(heading: 'DEFINITION', body: 'lasting for a very short time'),
-        const _LabelBlock(heading: 'ETYMOLOGY', body: 'from Greek “ephemeros” (lasting a day)'),
-        const _LabelBlock(heading: 'EXAMPLE', body: '“The fog was ephemeral, fading before noon.”'),
+        _LabelBlock(heading: 'DICTIONARY', body: source),
+        _LabelBlock(heading: 'PHONETIC PRONUNCIATION', body: phonetic),
+        _LabelBlock(heading: 'DEFINITION', body: definition),
+        _LabelBlock(heading: 'ETYMOLOGY', body: etymology),
+        _LabelBlock(heading: 'EXAMPLE', body: example),
         const SizedBox(height: 10),
         _Btn('NEW RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
@@ -273,7 +270,7 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
   static const int pageSize = 5;
   int pageIndex = 0;
 
-  List<String> get _suggestions => demoWords.toList();
+  List<String> get _suggestions => LibraryService.instance.suggest(widget.typed, limit: 30);
 
   @override
   Widget build(BuildContext context) {
@@ -282,7 +279,7 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
 
     final start = pageIndex * pageSize;
     final end = min(start + pageSize, suggestions.length);
-    final view = suggestions.sublist(start, end);
+    final view = suggestions.isEmpty ? <String>[] : suggestions.sublist(start, end);
 
     return _Frame(
       title: 'WORD NOT FOUND',
@@ -295,7 +292,8 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
         const SizedBox(height: 14),
         const Text('Did you mean:', textAlign: TextAlign.center),
         const SizedBox(height: 10),
-        if (totalPages > 1)
+
+        if (suggestions.isNotEmpty && totalPages > 1)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -309,22 +307,29 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
                 const SizedBox(width: 60),
             ],
           ),
-        for (final s in view)
-          _Btn(s, onTap: () {
-            SessionState.lastWord = s;
-            if (!SessionState.history.contains(s)) SessionState.history.add(s);
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: s)));
-          }),
+
+        if (suggestions.isEmpty)
+          const Text('(No suggestions found.)', textAlign: TextAlign.center)
+        else
+          for (final s in view)
+            _Btn(s, onTap: () {
+              SessionState.lastWord = s;
+              if (!SessionState.history.contains(s)) SessionState.history.add(s);
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: s)));
+            }),
+
         const SizedBox(height: 10),
         _Btn('RETURN TO SEARCH', onTap: () async {
           final result = await _promptForWord(context);
           if (result == null) return;
           final upper = result.trim().toUpperCase();
           if (upper.isEmpty) return;
-          if (demoWords.contains(upper)) {
-            SessionState.lastWord = upper;
-            if (!SessionState.history.contains(upper)) SessionState.history.add(upper);
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: upper)));
+
+          final e = _entry(upper);
+          if (e != null) {
+            SessionState.lastWord = e.word;
+            if (!SessionState.history.contains(e.word)) SessionState.history.add(e.word);
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: e.word)));
           } else {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
           }
@@ -383,7 +388,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Display alphabetically (case-insensitive), without changing stored order.
     final items = List<String>.from(SessionState.history)
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
@@ -656,10 +660,7 @@ class _Frame extends StatelessWidget {
   final String face;
   final List<Widget> children;
 
-  /// If null, no floating Close App button.
   final VoidCallback? onCloseApp;
-
-  /// Use false for update in-progress screen.
   final bool showCloseApp;
 
   const _Frame({
