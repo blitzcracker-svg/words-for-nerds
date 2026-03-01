@@ -270,7 +270,9 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
   static const int pageSize = 5;
   int pageIndex = 0;
 
-  List<String> get _suggestions => LibraryService.instance.suggest(widget.typed, limit: 30);
+  // ✅ Updated to smart suggestions
+  List<String> get _suggestions =>
+      LibraryService.instance.suggestSmart(widget.typed, limit: 30);
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +294,6 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
         const SizedBox(height: 14),
         const Text('Did you mean:', textAlign: TextAlign.center),
         const SizedBox(height: 10),
-
         if (suggestions.isNotEmpty && totalPages > 1)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -307,7 +308,6 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
                 const SizedBox(width: 60),
             ],
           ),
-
         if (suggestions.isEmpty)
           const Text('(No suggestions found.)', textAlign: TextAlign.center)
         else
@@ -317,7 +317,6 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
               if (!SessionState.history.contains(s)) SessionState.history.add(s);
               Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: s)));
             }),
-
         const SizedBox(height: 10),
         _Btn('RETURN TO SEARCH', onTap: () async {
           final result = await _promptForWord(context);
@@ -388,6 +387,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Display alphabetically (case-insensitive)
     final items = List<String>.from(SessionState.history)
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
