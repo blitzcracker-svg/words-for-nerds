@@ -46,8 +46,6 @@ const List<String> demoWords = [
   'SYCOPHANT',
 ];
 
-String randomDemoWord() => demoWords[Random().nextInt(demoWords.length)];
-
 void _openCloseApp(BuildContext context) {
   Navigator.push(context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
 }
@@ -81,15 +79,41 @@ Future<String?> _promptForWord(BuildContext context) async {
   );
 }
 
+/// Picks a random word that has NOT been used this session.
+/// Returns null when exhausted.
+String? _pickRandomUnusedWord() {
+  final used = SessionState.history.toSet();
+  final remaining = demoWords.where((w) => !used.contains(w)).toList();
+  if (remaining.isEmpty) return null;
+  remaining.shuffle(Random());
+  return remaining.first;
+}
+
+/// Generates a new random word with NO repeats.
+/// If exhausted, shows NO MORE WORDS AVAILABLE.
+void _pushRandomWordOrNoMore(BuildContext context, {bool replace = false}) {
+  final w = _pickRandomUnusedWord();
+  if (w == null) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const NoMoreWordsAvailableScreen()),
+    );
+    return;
+  }
+
+  SessionState.lastWord = w;
+  if (!SessionState.history.contains(w)) SessionState.history.add(w);
+
+  final route = MaterialPageRoute(builder: (_) => WordScreen(word: w));
+  if (replace) {
+    Navigator.pushReplacement(context, route);
+  } else {
+    Navigator.push(context, route);
+  }
+}
+
 class LaunchScreen extends StatelessWidget {
   const LaunchScreen({super.key});
-
-  void _goWord(BuildContext context) {
-    final w = randomDemoWord();
-    SessionState.lastWord = w;
-    if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
-  }
 
   void _search(BuildContext context) async {
     final result = await _promptForWord(context);
@@ -119,7 +143,7 @@ class LaunchScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
-        _Btn('CLICK HERE FOR A RANDOM WORD', onTap: () => _goWord(context)),
+        _Btn('CLICK HERE FOR A RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
         }),
@@ -135,13 +159,6 @@ class LaunchScreen extends StatelessWidget {
 class WordScreen extends StatelessWidget {
   final String word;
   const WordScreen({super.key, required this.word});
-
-  void _newRandom(BuildContext context) {
-    final w = randomDemoWord();
-    SessionState.lastWord = w;
-    if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
-  }
 
   void _search(BuildContext context) async {
     final result = await _promptForWord(context);
@@ -178,7 +195,7 @@ class WordScreen extends StatelessWidget {
         const _LabelBlock(heading: 'ETYMOLOGY', body: 'from Greek “ephemeros” (lasting a day)'),
         const _LabelBlock(heading: 'EXAMPLE', body: '“The fog was ephemeral, fading before noon.”'),
         const SizedBox(height: 10),
-        _Btn('NEW RANDOM WORD', onTap: () => _newRandom(context)),
+        _Btn('NEW RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
         }),
@@ -186,6 +203,49 @@ class WordScreen extends StatelessWidget {
         _Btn('HISTORY', onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
         }),
+      ],
+    );
+  }
+}
+
+class NoMoreWordsAvailableScreen extends StatelessWidget {
+  const NoMoreWordsAvailableScreen({super.key});
+
+  static const List<String> _sadFaces = [
+    '(;_;)',
+    '(T_T)',
+    '(:\')',
+    '(._.)',
+    '(x_x)',
+    '(>_<)',
+  ];
+
+  static String _pickFace() => _sadFaces[Random().nextInt(_sadFaces.length)];
+
+  @override
+  Widget build(BuildContext context) {
+    return _Frame(
+      title: 'NO MORE WORDS AVAILABLE',
+      face: _pickFace(),
+      onCloseApp: () => _openCloseApp(context),
+      children: [
+        const Text(
+          '“Alas. The generator has stared into the void,\nand the void returned… zero results.”',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'Try adjusting your RANDOMIZER SETTINGS or clearing\nyour HISTORY to generate more words!',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        _Btn('RANDOMIZER SETTINGS', onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
+        }),
+        _Btn('HISTORY', onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
+        }),
+        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
     );
   }
@@ -259,12 +319,7 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
           }
         }),
-        _Btn('NEW RANDOM WORD', onTap: () {
-          final w = randomDemoWord();
-          SessionState.lastWord = w;
-          if (!SessionState.history.contains(w)) SessionState.history.add(w);
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
-        }),
+        _Btn('NEW RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
         }),
