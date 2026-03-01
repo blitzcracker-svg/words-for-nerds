@@ -1,26 +1,32 @@
 [
-  {
-    "word": "EPHEMERAL",
-    "phonetic": "ih-FEM-uh-rəl",
-    "definition": "Lasting for a very short time.",
-    "etymology": "From Greek ephemeros, 'lasting only a day.'",
-    "example": "The fog was ephemeral, fading before noon.",
-    "source": "Offline library"
-  },
-  {
-    "word": "ETHEREAL",
-    "phonetic": "ih-THEER-ee-əl",
-    "definition": "Extremely delicate and light; seeming not to be of this world.",
-    "etymology": "From Latin aetherius, 'of the upper air.'",
-    "example": "An ethereal melody drifted through the hall.",
-    "source": "Offline library"
-  },
-  {
-    "word": "ZEPHYR",
-    "phonetic": "ZEF-er",
-    "definition": "A soft, gentle breeze.",
-    "etymology": "From Greek Zephyros, the west wind.",
-    "example": "A zephyr cooled the afternoon heat.",
-    "source": "Offline library"
-  }
+  {"word":"ABSCOND","phonetic":"ab-SKOND","definition":"To leave secretly and suddenly, especially to avoid arrest or prosecution.","etymology":"From Latin abscondere, ‘to hide away.’","example":"The treasurer absconded with the funds before the audit.","source":"Offline library"},
+  {"word":"ACUMEN","phonetic":"uh-KYOO-muhn","definition":"The ability to make good judgments and quick decisions.","etymology":"From Latin acumen, ‘sharpness.’","example":"Her business acumen impressed the investors.","source":"Offline library"},
+  {"word":"AFFABLE","phonetic":"AF-uh-buhl","definition":"Friendly, good-natured, and easy to talk to.","etymology":"From Latin affabilis, ‘easy to speak to.’","example":"He was affable with strangers at the party.","source":"Offline library"},
+  {"word":"ALACRITY","phonetic":"uh-LAK-ri-tee","definition":"Brisk and cheerful readiness.","etymology":"From Latin alacritas, ‘liveliness.’","example":"She accepted the challenge with alacrity.","source":"Offline library"},
+  {"word":"AMBIVALENT","phonetic":"am-BIV-uh-luhnt","definition":"Having mixed feelings or contradictory ideas about something.","etymology":"From Latin ambi- ‘both’ + valere ‘to be strong.’","example":"He felt ambivalent about moving away.","source":"Offline library"},
+  {"word":"ANACHRONISM","phonetic":"uh-NAK-ruh-niz-um","definition":"Something that belongs to a different time period than it appears in.","etymology":"From Greek ana- ‘against’ + chronos ‘time.’","example":"A wristwatch in a medieval scene is an anachronism.","source":"Offline library"},
+  {"word":"AUSTERE","phonetic":"aw-STEER","definition":"Severe or strict in manner or appearance.","etymology":"From Greek austēros, ‘harsh.’","example":"The room was austere, with only a bed and desk.","source":"Offline library"},
+  {"word":"BENEFACTOR","phonetic":"BEN-uh-fak-ter","definition":"A person who gives money or other help.","etymology":"From Latin benefactor, ‘one who does good.’","example":"A benefactor donated books to the school.","source":"Offline library"},
+  {"word":"CANDOR","phonetic":"KAN-der","definition":"The quality of being open and honest.","etymology":"From Latin candor, ‘whiteness; sincerity.’","example":"I appreciated her candor during the meeting.","source":"Offline library"},
+  {"word":"CAPRICIOUS","phonetic":"kuh-PRISH-us","definition":"Given to sudden and unaccountable changes of mood or behavior.","etymology":"Probably from Italian capriccio, ‘whim.’","example":"The weather here is famously capricious.","source":"Offline library"},
+  {"word":"CLANDESTINE","phonetic":"klan-DES-tin","definition":"Kept secret or done secretly, especially because illicit.","etymology":"From Latin clandestinus, ‘secret.’","example":"They held a clandestine meeting at dusk.","source":"Offline library"},
+  {"word":"COALESCE","phonetic":"koh-uh-LES","definition":"To come together to form one mass or whole.","etymology":"From Latin coalescere, ‘to grow together.’","example":"The droplets coalesced into a single bead.","source":"Offline library"},
+  {"word":"CONFLATE","phonetic":"kuhn-FLAYT","definition":"To combine two things into one, often mistakenly.","etymology":"From Latin conflare, ‘to blow together.’","example":"People often conflate correlation with causation.","source":"Offline library"},
+  {"word":"CREDULOUS","phonetic":"KREJ-uh-lus","definition":"Too ready to believe things.","etymology":"From Latin credulus, ‘easy to believe.’","example":"A credulous audience fell for the trick.","source":"Offline library"},
+  {"word":"DEARTH","phonetic":"durth","definition":"A scarcity or lack of something.","etymology":"From Old English deorþ, ‘scarcity.’","example":"There is a dearth of fresh water in the region.","source":"Offline library"},
+  {"word":"DILATORY","phonetic":"DIL-uh-tor-ee","definition":"Slow to act; intended to cause delay.","etymology":"From Latin dilatorius, ‘tending to delay.’","example":"His dilatory response cost them time.","source":"Offline library"},
+  {"word":"ELUCIDATE","phonetic":"ih-LOO-suh-dayt","definition":"To make something clear; explain.","etymology":"From Latin elucidare, ‘to make clear.’","example":"She elucidated the confusing policy.","source":"Offline library"},
+  {"word":"ENERVATE","phonetic":"EN-er-vayt","definition":"To weaken or drain energy from.","etymology":"From Latin enervare, ‘to weaken.’","example":"The long heatwave enervated everyone.","source":"Offline library"},
+  {"word":"EPHEMERAL","phonetic":"ih-FEM-uh-rəl","definition":"Lasting for a very short time.","etymology":"From Greek ephemeros, ‘lasting only a day.’","example":"The fog was ephemeral, fading before noon.","source":"Offline library"},
+  {"word":"EQUANIMITY","phonetic":"ee-kwuh-NIM-uh-tee","definition":"Calmness and composure, especially in a difficult situation.","etymology":"From Latin aequanimitas, ‘evenness of mind.’","example":"She faced the criticism with equanimity.","source":"Offline library"},
+  {"word":"ETHEREAL","phonetic":"ih-THEER-ee-əl","definition":"Extremely delicate and light; seeming not to be of this world.","etymology":"From Latin aetherius, ‘of the upper air.’","example":"An ethereal melody drifted through the hall.","source":"Offline library"},
+  {"word":"FASTIDIOUS","phonetic":"fa-STID-ee-us","definition":"Very attentive to detail; hard to please.","etymology":"From Latin fastidiosus, ‘disdainful.’","example":"He was fastidious about cleanliness.","source":"Offline library"},
+  {"word":"GARRULOUS","phonetic":"GAR-uh-lus","definition":"Excessively talkative, especially on trivial matters.","etymology":"From Latin garrulus, ‘talkative.’","example":"The garrulous guest dominated the conversation.","source":"Offline library"},
+  {"word":"HARBINGER","phonetic":"HAR-bin-jer","definition":"A person or thing that signals the approach of something.","etymology":"From Middle English herbergere, ‘one who provides lodging.’","example":"Robins are often a harbinger of spring.","source":"Offline library"},
+  {"word":"IMPLACABLE","phonetic":"im-PLAK-uh-buhl","definition":"Unable to be appeased or placated.","etymology":"From Latin implacabilis, ‘unappeasable.’","example":"The critic was implacable in his review.","source":"Offline library"},
+  {"word":"INEFFABLE","phonetic":"in-EF-uh-buhl","definition":"Too great or extreme to be expressed in words.","etymology":"From Latin ineffabilis, ‘unutterable.’","example":"They felt an ineffable sense of awe.","source":"Offline library"},
+  {"word":"LIMINAL","phonetic":"LIM-uh-nl","definition":"Relating to a transitional or initial stage of a process.","etymology":"From Latin limen, ‘threshold.’","example":"Dawn is a liminal time between night and day.","source":"Offline library"},
+  {"word":"MELLIFLUOUS","phonetic":"muh-LIF-loo-us","definition":"Sweet or musical; pleasant to hear.","etymology":"From Latin mel ‘honey’ + fluere ‘to flow.’","example":"Her mellifluous voice calmed the room.","source":"Offline library"},
+  {"word":"OBFUSCATE","phonetic":"OB-fuh-skayt","definition":"To make something unclear or difficult to understand.","etymology":"From Latin obfuscare, ‘to darken.’","example":"Jargon can obfuscate a simple point.","source":"Offline library"},
+  {"word":"ZEPHYR","phonetic":"ZEF-er","definition":"A soft, gentle breeze.","etymology":"From Greek Zephyros, the west wind.","example":"A zephyr cooled the afternoon heat.","source":"Offline library"}
 ]
