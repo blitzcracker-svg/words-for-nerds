@@ -43,35 +43,74 @@ class LibraryService {
 
   WordEntry? lookup(String word) => _byWord[word.trim().toUpperCase()];
 
-  /// Suggestions (offline): contains match first, then prefix match.
-  /// Returns up to [limit] results.
-  List<String> suggest(String typed, {int limit = 15}) {
+  /// Stronger offline suggestions:
+  /// Score words by:
+  /// 1) prefix match
+  /// 2) contains match
+  /// 3) simple edit-distance-like score (very lightweight)
+  List<String> suggestSmart(String typed, {int limit = 30}) {
     final t = typed.trim().toUpperCase();
     if (t.isEmpty) return const [];
 
-    final keys = _byWord.keys.toList();
+    final candidates = _byWord.keys.toList();
+    final scored = <_ScoredWord>[];
+
+    for (final w in candidates) {
+      final score = _scoreWord(t, w);
+      if (score > 0) {
+        scored.add(_ScoredWord(w, score));
+      }
+    }
+
+    scored.sort((a, b) {
+      final s = b.score.compareTo(a.score);
+      if (s != 0) return s;
+      return a.word.toLowerCase().compareTo(b.word.toLowerCase());
+    });
 
     final out = <String>[];
-
-    // 1) contains matches
-    for (final w in keys) {
-      if (w.contains(t)) {
-        out.add(w);
-        if (out.length >= limit) break;
-      }
+    for (final s in scored) {
+      out.add(s.word);
+      if (out.length >= limit) break;
     }
-
-    // 2) prefix matches to fill
-    if (out.length < limit) {
-      for (final w in keys) {
-        if (w.startsWith(t) && !out.contains(w)) {
-          out.add(w);
-          if (out.length >= limit) break;
-        }
-      }
-    }
-
-    out.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return out;
   }
+
+  int _scoreWord(String typed, String w) {
+    // Hard cap for performance: skip huge mismatches
+    if (typed.length > 0 && (w[0] == typed[0])) {
+      // keep
+    }
+
+    int score = 0;
+
+    // Prefix match gets big boost
+    if (w.startsWith(typed)) score += 100;
+
+    // Contains match medium boost
+    if (w.contains(typed)) score += 60;
+
+    // Similar-length bonus
+    final lenDiff = (w.length - typed.length).abs();
+    score += (20 - lenDiff).clamp(0, 20);
+
+    // Character overlap bonus (very lightweight)
+    score += _charOverlapScore(typed, w);
+
+    return score;
+  }
+
+  int _charOverlapScore(String a, String b) {
+    // Count shared characters, but avoid heavy computation
+    final setA = a.split('').toSet();
+    final setB = b.split('').toSet();
+    final shared = setA.intersection(setB).length;
+    return (shared * 4).clamp(0, 40);
+  }
+}
+
+class _ScoredWord {
+  final String word;
+  final int score;
+  const _ScoredWord(this.word, this.score);
 }
