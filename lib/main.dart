@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'services/update_service.dart';
 import 'services/library_service.dart';
+import 'services/tts_service.dart';
 import 'models/word_entry.dart';
 
 Future<void> main() async {
@@ -69,7 +70,6 @@ Future<String?> _promptForWord(BuildContext context) async {
 }
 
 List<String> _allWords() => LibraryService.instance.allWordsSorted();
-
 WordEntry? _entry(String word) => LibraryService.instance.lookup(word);
 
 /// Picks a random word that has NOT been used this session.
@@ -190,10 +190,13 @@ class WordScreen extends StatelessWidget {
       underlineStyle: UnderlineStyle.short,
       onCloseApp: () => _openCloseApp(context),
       children: [
-        _Btn('LISTEN TO WORD', onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('TTS placeholder (offline)')),
-          );
+        _Btn('LISTEN TO WORD', onTap: () async {
+          final ok = await TtsService.speak(word);
+          if (!ok && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Text-to-speech unavailable on this device.')),
+            );
+          }
         }),
         const SizedBox(height: 14),
         _LabelBlock(heading: 'DICTIONARY', body: source),
@@ -270,7 +273,6 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
   static const int pageSize = 5;
   int pageIndex = 0;
 
-  // ✅ Updated to smart suggestions
   List<String> get _suggestions =>
       LibraryService.instance.suggestSmart(widget.typed, limit: 30);
 
@@ -387,7 +389,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Display alphabetically (case-insensitive)
     final items = List<String>.from(SessionState.history)
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
