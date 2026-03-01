@@ -3,8 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'services/update_service.dart';
+import 'services/library_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Offline library load (safe during setup; won't crash if file isn't ready yet)
+  try {
+    await LibraryService.instance.initFromAsset();
+  } catch (_) {
+    // If assets/library.json isn't present yet, app can still run using demoWords
+  }
+
   runApp(const WordsForNerdsApp());
 }
 
@@ -663,8 +673,7 @@ class _Frame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final underline =
-        underlineStyle == UnderlineStyle.short ? '─────────' : '────────────────────';
+    final underline = underlineStyle == UnderlineStyle.short ? '─────────' : '────────────────────';
     final bottomPad = (showCloseApp && onCloseApp != null) ? 90.0 : 18.0;
 
     return Scaffold(
