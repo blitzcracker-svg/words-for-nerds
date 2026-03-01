@@ -230,7 +230,7 @@ class NoMoreWordsAvailableScreen extends StatelessWidget {
       onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
-          '“Alas. The generator has stared into the void,\nand the void returned… zero results.”',
+          '"Alas. The generator has stared into the void,\nand the void returned… zero results."',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 14),
@@ -373,7 +373,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = SessionState.history;
+    // ✅ Display alphabetically (case-insensitive), without changing stored order.
+    final items = List<String>.from(SessionState.history)
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
     final totalPages = (items.length / pageSize).ceil().clamp(1, 9999);
 
     final start = pageIndex * pageSize;
@@ -425,7 +428,7 @@ class ClearHistoryConfirmScreen extends StatelessWidget {
       onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
-          '“Erase your super-generations from existence…\npermanently… with your finger… right now?”',
+          '"Erase your super-generations from existence…\npermanently… with your finger… right now?"',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
@@ -450,7 +453,7 @@ class HistoryClearedScreen extends StatelessWidget {
       onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
-          '“Your lexical footprints have been gently\nun-footprinted.”',
+          '"Your lexical footprints have been gently\nun-footprinted."',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 14),
@@ -534,7 +537,7 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
       showCloseApp: false,
       children: const [
         Text(
-          '“The library is being politely wrestled into\na newer shape. Please do not blink aggressively.”',
+          '"The library is being politely wrestled into\na newer shape. Please do not blink aggressively."',
           textAlign: TextAlign.center,
         ),
         SizedBox(height: 14),
@@ -555,7 +558,7 @@ class UpdateCompleteScreen extends StatelessWidget {
       onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
-          '“Behold: refreshed definitions, newly found\nwords, and general lexical glow.”',
+          '"Behold: refreshed definitions, newly found\nwords, and general lexical glow."',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 14),
@@ -582,7 +585,7 @@ class UpdateFailedScreen extends StatelessWidget {
       onCloseApp: () => _openCloseApp(context),
       children: [
         const Text(
-          '“The update tripped over its own vocabulary\nand face-planted into the concept of ‘no.’”',
+          '"The update tripped over its own vocabulary\nand face-planted into the concept of ‘no.’"',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
@@ -618,7 +621,7 @@ class CloseAppScreen extends StatelessWidget {
       },
       children: [
         const Text(
-          '“I shall remain here, quietly holding the shape\nof your unfinished sentences, until you return.”',
+          '"I shall remain here, quietly holding the shape\nof your unfinished sentences, until you return."',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
