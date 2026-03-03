@@ -35,10 +35,33 @@ class WordsForNerdsApp extends StatelessWidget {
   }
 }
 
-/// In-memory session state (does NOT clear when you switch apps).
+/// Session memory (does NOT clear when you switch apps).
 class SessionState {
   static final List<String> history = [];
   static String? lastWord;
+}
+
+/// Generator Settings (in-memory only; resets when app process restarts).
+class SettingsState {
+  static int minLen = 1;
+  static int maxLen = 45;
+
+  /// AND filter: word must include ALL letters in this set.
+  static final Set<String> letters = <String>{};
+
+  static bool passes(String word) {
+    final w = word.toUpperCase();
+
+    final len = w.length;
+    if (len < minLen || len > maxLen) return false;
+
+    if (letters.isEmpty) return true;
+
+    for (final ch in letters) {
+      if (!w.contains(ch)) return false;
+    }
+    return true;
+  }
 }
 
 List<String> _allWords() => LibraryService.instance.allWordsSorted();
@@ -80,10 +103,18 @@ Future<String?> _promptForWord(BuildContext context) async {
   );
 }
 
+/// Picks a random unused word that passes SettingsState filters.
+/// Returns null if none available.
 String? _pickRandomUnusedWord() {
   final used = SessionState.history.toSet();
-  final remaining = _allWords().where((w) => !used.contains(w)).toList();
+
+  final remaining = _allWords().where((w) {
+    if (used.contains(w)) return false;
+    return SettingsState.passes(w);
+  }).toList();
+
   if (remaining.isEmpty) return null;
+
   remaining.shuffle(Random());
   return remaining.first;
 }
@@ -124,6 +155,7 @@ class LaunchScreen extends StatelessWidget {
     final e = _entry(upper);
 
     if (e != null) {
+      // Search is intentional: do NOT apply filters.
       SessionState.lastWord = e.word;
       if (!SessionState.history.contains(e.word)) SessionState.history.add(e.word);
       Navigator.push(
@@ -263,8 +295,7 @@ class _WordScreenState extends State<WordScreen> with RouteAware {
         _LabelBlock(heading: 'ETYMOLOGY', body: etymology),
         _LabelBlock(heading: 'EXAMPLE', body: example),
         const SizedBox(height: 10),
-        _Btn('NEW RANDOM WORD',
-            onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
+        _Btn('NEW RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(
             context,
@@ -279,6 +310,184 @@ class _WordScreenState extends State<WordScreen> with RouteAware {
           );
         }),
       ],
+    );
+  }
+}
+
+class RandomizerSettingsScreen extends StatefulWidget {
+  const RandomizerSettingsScreen({super.key});
+
+  @override
+  State<RandomizerSettingsScreen> createState() => _RandomizerSettingsScreenState();
+}
+
+class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
+  static const int _minAllowed = 1;
+  static const int _maxAllowed = 45;
+
+  void _decMin() {
+    setState(() {
+      SettingsState.minLen = (SettingsState.minLen - 1).clamp(_minAllowed, _maxAllowed);
+      if (SettingsState.minLen > SettingsState.maxLen) {
+        SettingsState.maxLen = SettingsState.minLen;
+      }
+    });
+  }
+
+  void _incMin() {
+    setState(() {
+      SettingsState.minLen = (SettingsState.minLen + 1).clamp(_minAllowed, _maxAllowed);
+      if (SettingsState.minLen > SettingsState.maxLen) {
+        SettingsState.maxLen = SettingsState.minLen;
+      }
+    });
+  }
+
+  void _decMax() {
+    setState(() {
+      SettingsState.maxLen = (SettingsState.maxLen - 1).clamp(_minAllowed, _maxAllowed);
+      if (SettingsState.maxLen < SettingsState.minLen) {
+        SettingsState.minLen = SettingsState.maxLen;
+      }
+    });
+  }
+
+  void _incMax() {
+    setState(() {
+      SettingsState.maxLen = (SettingsState.maxLen + 1).clamp(_minAllowed, _maxAllowed);
+      if (SettingsState.maxLen < SettingsState.minLen) {
+        SettingsState.minLen = SettingsState.maxLen;
+      }
+    });
+  }
+
+  void _toggleLetter(String ch) {
+    setState(() {
+      if (SettingsState.letters.contains(ch)) {
+        SettingsState.letters.remove(ch);
+      } else {
+        SettingsState.letters.add(ch);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _Frame(
+      title: 'RANDOMIZER SETTINGS',
+      face: '(－_－) z z z',
+      onCloseApp: () => _openCloseApp(context),
+      children: [
+        const Text('WORD LENGTH RANGE', textAlign: TextAlign.center),
+        const SizedBox(height: 10),
+
+        _RangeRow(
+          label: 'MIN',
+          value: SettingsState.minLen,
+          onDec: _decMin,
+          onInc: _incMin,
+        ),
+        _RangeRow(
+          label: 'MAX',
+          value: SettingsState.maxLen,
+          onDec: _decMax,
+          onInc: _incMax,
+        ),
+
+        const SizedBox(height: 18),
+        const Text('LETTER FILTER', textAlign: TextAlign.center),
+        const SizedBox(height: 10),
+
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: List.generate(26, (i) {
+            final ch = String.fromCharCode('A'.codeUnitAt(0) + i);
+            final selected = SettingsState.letters.contains(ch);
+            return _LetterToggle(
+              letter: ch,
+              selected: selected,
+              onTap: () => _toggleLetter(ch),
+            );
+          }),
+        ),
+
+        const SizedBox(height: 18),
+        const Text(
+          '"Tiny constraints, enormous consequences."',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 18),
+
+        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
+      ],
+    );
+  }
+}
+
+class _RangeRow extends StatelessWidget {
+  final String label;
+  final int value;
+  final VoidCallback onDec;
+  final VoidCallback onInc;
+
+  const _RangeRow({
+    required this.label,
+    required this.value,
+    required this.onDec,
+    required this.onInc,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(width: 12),
+        _MiniNavBtn('◀', onTap: onDec),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 48,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(width: 10),
+        _MiniNavBtn('▶', onTap: onInc),
+      ],
+    );
+  }
+}
+
+class _LetterToggle extends StatelessWidget {
+  final String letter;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _LetterToggle({
+    required this.letter,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: selected ? const Color(0xFF2A2D36) : const Color(0xFF1A1C22),
+          foregroundColor: const Color(0xFFB86B6B),
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        onPressed: onTap,
+        child: Text(letter, textAlign: TextAlign.center),
+      ),
     );
   }
 }
@@ -437,39 +646,6 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
   }
 }
 
-class RandomizerSettingsScreen extends StatelessWidget {
-  const RandomizerSettingsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return _Frame(
-      title: 'RANDOMIZER SETTINGS',
-      face: '(－_－) z z z',
-      onCloseApp: () => _openCloseApp(context),
-      children: [
-        const Text('WORD LENGTH RANGE', textAlign: TextAlign.center),
-        const SizedBox(height: 10),
-        const Text('MIN  [◀]  1  [▶]', textAlign: TextAlign.center),
-        const Text('MAX  [◀] 45  [▶]', textAlign: TextAlign.center),
-        const SizedBox(height: 18),
-        const Text('LETTER FILTER', textAlign: TextAlign.center),
-        const SizedBox(height: 10),
-        const Text('[A][B][C][D][E][F][G][H][I]',
-            textAlign: TextAlign.center),
-        const Text('[J][K][L][M][N][O][P][Q][R]',
-            textAlign: TextAlign.center),
-        const Text('[S][T][U][V][W][X][Y][Z]',
-            textAlign: TextAlign.center),
-        const SizedBox(height: 18),
-        const Text('"Tiny constraints, enormous consequences."',
-            textAlign: TextAlign.center),
-        const SizedBox(height: 18),
-        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
-      ],
-    );
-  }
-}
-
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
@@ -602,8 +778,7 @@ class UpdateWordLibraryScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
-        const Text('[this is how you update this app’s word library]',
-            textAlign: TextAlign.center),
+        const Text('[this is how you update this app’s word library]', textAlign: TextAlign.center),
         const SizedBox(height: 10),
         const Text('This may take up to:  A WHILE', textAlign: TextAlign.center),
         const SizedBox(height: 10),
@@ -669,8 +844,7 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
           textAlign: TextAlign.center,
         ),
         SizedBox(height: 14),
-        Text('PROGRESS:  [██████████░░░░░░░░░░░░]',
-            textAlign: TextAlign.center),
+        Text('PROGRESS:  [██████████░░░░░░░░░░░░]', textAlign: TextAlign.center),
       ],
     );
   }
@@ -807,8 +981,7 @@ class _Frame extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 26, fontWeight: FontWeight.normal),
+                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.normal),
               ),
               const SizedBox(height: 4),
               Text(underline, textAlign: TextAlign.center),
@@ -850,8 +1023,7 @@ class _Btn extends StatelessWidget {
           backgroundColor: const Color(0xFF1A1C22),
           foregroundColor: const Color(0xFFB86B6B),
           padding: EdgeInsets.symmetric(vertical: small ? 10 : 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
         onPressed: onTap,
         child: Text(text, textAlign: TextAlign.center),
@@ -895,8 +1067,7 @@ class _MiniNavBtn extends StatelessWidget {
           backgroundColor: const Color(0xFF1A1C22),
           foregroundColor: const Color(0xFFB86B6B),
           padding: const EdgeInsets.symmetric(vertical: 10),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
         onPressed: onTap,
         child: Text(text, textAlign: TextAlign.center),
