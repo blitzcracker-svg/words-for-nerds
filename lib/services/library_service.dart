@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import '../models/word_entry.dart';
 
@@ -6,33 +7,70 @@ class LibraryService {
   LibraryService._();
   static final LibraryService instance = LibraryService._();
 
+  static const MethodChannel _filesCh = MethodChannel('words_for_nerds/files');
+
   bool _ready = false;
   bool get ready => _ready;
 
-  late final Map<String, WordEntry> _byWord;
+  Map<String, WordEntry> _byWord = {};
+
+  Future<String> _getFilesDir() async {
+    final path = await _filesCh.invokeMethod<String>('getFilesDir');
+    if (path == null || path.trim().isEmpty) {
+      throw StateError('Could not resolve app files directory.');
+    }
+    return path;
+  }
+
+  Future<File> _savedLibraryFile() async {
+    final dir = await _getFilesDir();
+    return File('$dir/library.json');
+  }
+
+  Future<File> _metaFile() async {
+    final dir = await _getFilesDir();
+    return File('$dir/library_meta.json');
+  }
 
   Future<void> initFromAsset() async {
     if (_ready) return;
+    await _loadBestAvailable();
+    _ready = true;
+  }
 
-    final raw = await rootBundle.loadString('assets/library.json');
+  Future<void> reloadFromDisk() async {
+    _ready = false;
+    await _loadBestAvailable();
+    _ready = true;
+  }
+
+  Future<void> _loadBestAvailable() async {
+    // Try saved library first
+    String? raw;
+    try {
+      final f = await _savedLibraryFile();
+      if (await f.exists()) {
+        raw = await f.readAsString();
+      }
+    } catch (_) {}
+
+    // Fallback to bundled asset
+    raw ??= await rootBundle.loadString('assets/library.json');
+
     final data = jsonDecode(raw);
-
     if (data is! List) {
-      throw StateError('assets/library.json must be a JSON array.');
+      throw StateError('Library must be a JSON array.');
     }
 
     final by = <String, WordEntry>{};
     for (final item in data) {
       if (item is Map) {
         final e = WordEntry.fromJson(item.cast<String, dynamic>());
-        if (e.word.isNotEmpty) {
-          by[e.word] = e; // last wins if duplicates
-        }
+        if (e.word.isNotEmpty) by[e.word] = e;
       }
     }
 
     _byWord = by;
-    _ready = true;
   }
 
   List<String> allWordsSorted() {
@@ -43,23 +81,14 @@ class LibraryService {
 
   WordEntry? lookup(String word) => _byWord[word.trim().toUpperCase()];
 
-  /// Stronger offline suggestions:
-  /// Score words by:
-  /// 1) prefix match
-  /// 2) contains match
-  /// 3) simple edit-distance-like score (very lightweight)
   List<String> suggestSmart(String typed, {int limit = 30}) {
     final t = typed.trim().toUpperCase();
     if (t.isEmpty) return const [];
 
-    final candidates = _byWord.keys.toList();
     final scored = <_ScoredWord>[];
-
-    for (final w in candidates) {
+    for (final w in _byWord.keys) {
       final score = _scoreWord(t, w);
-      if (score > 0) {
-        scored.add(_ScoredWord(w, score));
-      }
+      if (score > 0) scored.add(_ScoredWord(w, score));
     }
 
     scored.sort((a, b) {
@@ -77,35 +106,32 @@ class LibraryService {
   }
 
   int _scoreWord(String typed, String w) {
-    // Hard cap for performance: skip huge mismatches
-    if (typed.length > 0 && (w[0] == typed[0])) {
-      // keep
-    }
-
     int score = 0;
-
-    // Prefix match gets big boost
     if (w.startsWith(typed)) score += 100;
-
-    // Contains match medium boost
     if (w.contains(typed)) score += 60;
 
-    // Similar-length bonus
     final lenDiff = (w.length - typed.length).abs();
     score += (20 - lenDiff).clamp(0, 20);
 
-    // Character overlap bonus (very lightweight)
-    score += _charOverlapScore(typed, w);
+    final setA = typed.split('').toSet();
+    final setB = w.split('').toSet();
+    final shared = setA.intersection(setB).length;
+    score += (shared * 4).clamp(0, 40);
 
     return score;
   }
 
-  int _charOverlapScore(String a, String b) {
-    // Count shared characters, but avoid heavy computation
-    final setA = a.split('').toSet();
-    final setB = b.split('').toSet();
-    final shared = setA.intersection(setB).length;
-    return (shared * 4).clamp(0, 40);
+  // ---- last-updated helpers ----
+  Future<String> lastUpdatedLabel() async {
+    try {
+      final mf = await _metaFile();
+      if (!await mf.exists()) return 'Bundled';
+      final j = jsonDecode(await mf.readAsString());
+      if (j is Map && j['lastUpdatedIso'] is String) {
+        return (j['lastUpdatedIso'] as String);
+      }
+    } catch (_) {}
+    return 'Bundled';
   }
 }
 
