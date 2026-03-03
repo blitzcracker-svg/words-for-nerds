@@ -2,10 +2,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'services/update_service.dart';
+import 'models/word_entry.dart';
 import 'services/library_service.dart';
 import 'services/tts_service.dart';
-import 'models/word_entry.dart';
+import 'services/update_service.dart';
 
 final RouteObserver<PageRoute<dynamic>> routeObserver =
     RouteObserver<PageRoute<dynamic>>();
@@ -39,6 +39,9 @@ class SessionState {
   static final List<String> history = [];
   static String? lastWord;
 }
+
+List<String> _allWords() => LibraryService.instance.allWordsSorted();
+WordEntry? _entry(String word) => LibraryService.instance.lookup(word);
 
 void _openCloseApp(BuildContext context) {
   Navigator.push(
@@ -76,9 +79,6 @@ Future<String?> _promptForWord(BuildContext context) async {
   );
 }
 
-List<String> _allWords() => LibraryService.instance.allWordsSorted();
-WordEntry? _entry(String word) => LibraryService.instance.lookup(word);
-
 String? _pickRandomUnusedWord() {
   final used = SessionState.history.toSet();
   final remaining = _allWords().where((w) => !used.contains(w)).toList();
@@ -111,8 +111,9 @@ void _pushRandomWordOrNoMore(BuildContext context, {bool replace = false}) {
 class LaunchScreen extends StatelessWidget {
   const LaunchScreen({super.key});
 
-  void _search(BuildContext context) async {
+  Future<void> _search(BuildContext context) async {
     final result = await _promptForWord(context);
+    if (!context.mounted) return;
     if (result == null) return;
 
     final typed = result.trim();
@@ -148,8 +149,10 @@ class LaunchScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
-        _Btn('CLICK HERE FOR A RANDOM WORD',
-            onTap: () => _pushRandomWordOrNoMore(context)),
+        _Btn(
+          'CLICK HERE FOR A RANDOM WORD',
+          onTap: () => _pushRandomWordOrNoMore(context),
+        ),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(
             context,
@@ -188,20 +191,20 @@ class _WordScreenState extends State<WordScreen> with RouteAware {
 
   @override
   void didPushNext() {
-    // Leaving word screen (another screen pushed on top)
+    // Another screen pushed on top of the word screen.
     TtsService.stop();
   }
 
   @override
   void dispose() {
-    // Leaving for good (popped/replaced)
     routeObserver.unsubscribe(this);
     TtsService.stop();
     super.dispose();
   }
 
-  void _search(BuildContext context) async {
+  Future<void> _search(BuildContext context) async {
     final result = await _promptForWord(context);
+    if (!context.mounted) return;
     if (result == null) return;
 
     final typed = result.trim();
@@ -255,8 +258,7 @@ class _WordScreenState extends State<WordScreen> with RouteAware {
         _LabelBlock(heading: 'ETYMOLOGY', body: etymology),
         _LabelBlock(heading: 'EXAMPLE', body: example),
         const SizedBox(height: 10),
-        _Btn('NEW RANDOM WORD',
-            onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
+        _Btn('NEW RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(
             context,
@@ -389,7 +391,9 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
         const SizedBox(height: 10),
         _Btn('RETURN TO SEARCH', onTap: () async {
           final result = await _promptForWord(context);
+          if (!context.mounted) return;
           if (result == null) return;
+
           final upper = result.trim().toUpperCase();
           if (upper.isEmpty) return;
 
@@ -408,8 +412,7 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
             );
           }
         }),
-        _Btn('NEW RANDOM WORD',
-            onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
+        _Btn('NEW RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(
             context,
