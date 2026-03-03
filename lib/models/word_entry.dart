@@ -4,7 +4,6 @@ class WordEntry {
   final String definition;
   final String etymology;
   final String example;
-  final String source;
 
   const WordEntry({
     required this.word,
@@ -12,18 +11,17 @@ class WordEntry {
     required this.definition,
     required this.etymology,
     required this.example,
-    required this.source,
   });
 
-  factory WordEntry.fromJson(Map<String, dynamic> j) {
-    String s(dynamic v) => (v ?? '').toString().trim();
+  factory WordEntry.fromJson(Map<String, dynamic> json) {
+    String s(dynamic v) => (v == null) ? '' : v.toString();
+
     return WordEntry(
-      word: s(j['word']).toUpperCase(),
-      phonetic: s(j['phonetic']),
-      definition: s(j['definition']),
-      etymology: s(j['etymology']),
-      example: s(j['example']),
-      source: s(j['source']).isEmpty ? 'Offline library' : s(j['source']),
+      word: s(json['word']).trim().toUpperCase(),
+      phonetic: s(json['phonetic']).trim(),
+      definition: s(json['definition']).trim(),
+      etymology: s(json['etymology']).trim(),
+      example: s(json['example']).trim(),
     );
   }
 }
