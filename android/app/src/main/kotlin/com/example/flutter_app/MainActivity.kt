@@ -7,7 +7,8 @@ import io.flutter.plugin.common.MethodChannel
 import java.util.Locale
 
 class MainActivity : FlutterActivity() {
-  private val CHANNEL = "words_for_nerds/tts"
+  private val TTS_CHANNEL = "words_for_nerds/tts"
+  private val FILES_CHANNEL = "words_for_nerds/files"
 
   private var tts: TextToSpeech? = null
   private var ttsReady: Boolean = false
@@ -15,7 +16,8 @@ class MainActivity : FlutterActivity() {
   override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
     super.configureFlutterEngine(flutterEngine)
 
-    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+    // ---- TTS ----
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TTS_CHANNEL)
       .setMethodCallHandler { call, result ->
         when (call.method) {
           "speak" -> {
@@ -35,12 +37,19 @@ class MainActivity : FlutterActivity() {
           }
 
           "stop" -> {
-            try {
-              tts?.stop()
-            } catch (_: Exception) {}
+            try { tts?.stop() } catch (_: Exception) {}
             result.success(true)
           }
 
+          else -> result.notImplemented()
+        }
+      }
+
+    // ---- Files dir path ----
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FILES_CHANNEL)
+      .setMethodCallHandler { call, result ->
+        when (call.method) {
+          "getFilesDir" -> result.success(applicationContext.filesDir.absolutePath)
           else -> result.notImplemented()
         }
       }
