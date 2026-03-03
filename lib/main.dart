@@ -27,7 +27,8 @@ class WordsForNerdsApp extends StatelessWidget {
       navigatorObservers: [routeObserver],
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0E0F12),
-        textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Times New Roman'),
+        textTheme:
+            ThemeData.dark().textTheme.apply(fontFamily: 'Times New Roman'),
       ),
       home: const LaunchScreen(),
     );
@@ -247,7 +248,11 @@ class _WordScreenState extends State<WordScreen> with RouteAware {
           final ok = await TtsService.speak(widget.word);
           if (!ok && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Text-to-speech unavailable on this device.')),
+              const SnackBar(
+                content: Text(
+                  "Text-to-speech isn’t set up on this device. Install a TTS voice in Android Settings → Text-to-speech output.",
+                ),
+              ),
             );
           }
         }),
@@ -258,7 +263,8 @@ class _WordScreenState extends State<WordScreen> with RouteAware {
         _LabelBlock(heading: 'ETYMOLOGY', body: etymology),
         _LabelBlock(heading: 'EXAMPLE', body: example),
         const SizedBox(height: 10),
-        _Btn('NEW RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
+        _Btn('NEW RANDOM WORD',
+            onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(
             context,
@@ -412,7 +418,8 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
             );
           }
         }),
-        _Btn('NEW RANDOM WORD', onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
+        _Btn('NEW RANDOM WORD',
+            onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
           Navigator.push(
             context,
@@ -447,11 +454,15 @@ class RandomizerSettingsScreen extends StatelessWidget {
         const SizedBox(height: 18),
         const Text('LETTER FILTER', textAlign: TextAlign.center),
         const SizedBox(height: 10),
-        const Text('[A][B][C][D][E][F][G][H][I]', textAlign: TextAlign.center),
-        const Text('[J][K][L][M][N][O][P][Q][R]', textAlign: TextAlign.center),
-        const Text('[S][T][U][V][W][X][Y][Z]', textAlign: TextAlign.center),
+        const Text('[A][B][C][D][E][F][G][H][I]',
+            textAlign: TextAlign.center),
+        const Text('[J][K][L][M][N][O][P][Q][R]',
+            textAlign: TextAlign.center),
+        const Text('[S][T][U][V][W][X][Y][Z]',
+            textAlign: TextAlign.center),
         const SizedBox(height: 18),
-        const Text('"Tiny constraints, enormous consequences."', textAlign: TextAlign.center),
+        const Text('"Tiny constraints, enormous consequences."',
+            textAlign: TextAlign.center),
         const SizedBox(height: 18),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
@@ -591,7 +602,8 @@ class UpdateWordLibraryScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
-        const Text('[this is how you update this app’s word library]', textAlign: TextAlign.center),
+        const Text('[this is how you update this app’s word library]',
+            textAlign: TextAlign.center),
         const SizedBox(height: 10),
         const Text('This may take up to:  A WHILE', textAlign: TextAlign.center),
         const SizedBox(height: 10),
@@ -657,7 +669,8 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
           textAlign: TextAlign.center,
         ),
         SizedBox(height: 14),
-        Text('PROGRESS:  [██████████░░░░░░░░░░░░]', textAlign: TextAlign.center),
+        Text('PROGRESS:  [██████████░░░░░░░░░░░░]',
+            textAlign: TextAlign.center),
       ],
     );
   }
@@ -794,7 +807,8 @@ class _Frame extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.normal),
+                style: const TextStyle(
+                    fontSize: 26, fontWeight: FontWeight.normal),
               ),
               const SizedBox(height: 4),
               Text(underline, textAlign: TextAlign.center),
@@ -836,7 +850,8 @@ class _Btn extends StatelessWidget {
           backgroundColor: const Color(0xFF1A1C22),
           foregroundColor: const Color(0xFFB86B6B),
           padding: EdgeInsets.symmetric(vertical: small ? 10 : 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
         onPressed: onTap,
         child: Text(text, textAlign: TextAlign.center),
@@ -880,7 +895,8 @@ class _MiniNavBtn extends StatelessWidget {
           backgroundColor: const Color(0xFF1A1C22),
           foregroundColor: const Color(0xFFB86B6B),
           padding: const EdgeInsets.symmetric(vertical: 10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
         onPressed: onTap,
         child: Text(text, textAlign: TextAlign.center),
