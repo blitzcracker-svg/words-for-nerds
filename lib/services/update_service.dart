@@ -11,7 +11,6 @@ class UpdateResult {
 }
 
 class UpdateService {
-  // Edit these if your repo changes:
   static const String owner = 'blitzcracker-svg';
   static const String repo = 'words-for-nerds';
   static const String assetName = 'library.json';
@@ -26,12 +25,11 @@ class UpdateService {
     return path;
   }
 
-  /// Keeps main.dart unchanged by preserving the old method name.
+  /// Keeping the method name so main.dart doesn't need changing.
   Future<UpdateResult> runUpdatePlaceholder() async {
     try {
       final ok = await _downloadValidateInstall();
       if (ok) {
-        // Reload library immediately so new words are usable without restart.
         await LibraryService.instance.reloadFromDisk();
         return const UpdateResult(success: true, message: 'Updated.');
       }
@@ -43,6 +41,32 @@ class UpdateService {
     }
   }
 
+  bool _isHostAllowed(String host) {
+    final h = host.toLowerCase().trim();
+
+    // Direct GitHub hosts we expect.
+    const exact = <String>{
+      'github.com',
+      'objects.githubusercontent.com',
+      'release-assets.githubusercontent.com',
+      'github-releases.githubusercontent.com',
+    };
+    if (exact.contains(h)) return true;
+
+    // Some redirects use subdomains of githubusercontent.com
+    if (h.endsWith('githubusercontent.com')) return true;
+
+    // GitHub Release assets frequently redirect to AWS S3.
+    // Examples:
+    // - github-production-release-asset-2e65be.s3.amazonaws.com
+    // - github-production-release-asset-*.s3.us-east-1.amazonaws.com
+    if (h.contains('github-production-release-asset') && h.endsWith('amazonaws.com')) {
+      return true;
+    }
+
+    return false;
+  }
+
   Future<bool> _downloadValidateInstall() async {
     final dir = await _getFilesDir();
 
@@ -51,17 +75,9 @@ class UpdateService {
     final tmp = File('$dir/library_download.tmp');
     final meta = File('$dir/library_meta.json');
 
-    // GitHub releases latest download URL
     final url = Uri.parse(
       'https://github.com/$owner/$repo/releases/latest/download/$assetName',
     );
-
-    // Safety: allowlist hosts (github + its release storage redirect)
-    const allowedHosts = <String>{
-      'github.com',
-      'objects.githubusercontent.com',
-      'github-releases.githubusercontent.com',
-    };
 
     final client = HttpClient();
     client.userAgent = 'WordsForNerds/1.0';
@@ -69,23 +85,32 @@ class UpdateService {
     try {
       final req = await client.getUrl(url);
       req.followRedirects = true;
-      req.maxRedirects = 5;
+      req.maxRedirects = 10;
+      req.headers.set(HttpHeaders.acceptHeader, 'application/json');
 
       final res = await req.close();
 
-      // Validate redirects are still within GitHub infrastructure
+      // Check every redirect destination host
       for (final r in res.redirects) {
-        final h = r.location.host.toLowerCase();
-        if (!allowedHosts.contains(h)) {
-          throw StateError('Redirected to untrusted host: $h');
+        final host = r.location.host;
+        if (!_isHostAllowed(host)) {
+          throw StateError('Redirected to untrusted host: $host');
         }
+      }
+
+      // Also check the final response host
+      final finalHost = res.redirects.isNotEmpty
+          ? res.redirects.last.location.host
+          : url.host;
+      if (!_isHostAllowed(finalHost)) {
+        throw StateError('Final host untrusted: $finalHost');
       }
 
       if (res.statusCode != 200) {
         throw StateError('HTTP ${res.statusCode}');
       }
 
-      // Size guard (adjust later if you grow the library a lot)
+      // Size guard (increase later when your library grows)
       const maxBytes = 10 * 1024 * 1024; // 10MB
       int received = 0;
 
@@ -100,13 +125,12 @@ class UpdateService {
       }
       await sink.close();
 
-      // Validate JSON
+      // Validate JSON format
       final raw = await tmp.readAsString();
       final decoded = jsonDecode(raw);
       if (decoded is! List) throw StateError('Library must be JSON array.');
       if (decoded.isEmpty) throw StateError('Library empty.');
 
-      // Minimal schema validation
       int validCount = 0;
       for (final item in decoded) {
         if (item is Map && (item['word']?.toString().trim().isNotEmpty ?? false)) {
@@ -115,16 +139,16 @@ class UpdateService {
       }
       if (validCount == 0) throw StateError('No valid entries.');
 
-      // Backup current library (if present)
+      // Backup current library
       if (await target.exists()) {
         await target.copy(backup.path);
       }
 
-      // Atomic-ish replace
+      // Replace
       await tmp.copy(target.path);
       await tmp.delete().catchError((_) {});
 
-      // Write meta
+      // Persist last updated timestamp
       final nowIso = DateTime.now().toIso8601String();
       await meta.writeAsString(jsonEncode({
         'lastUpdatedIso': nowIso,
@@ -133,7 +157,7 @@ class UpdateService {
 
       return true;
     } catch (_) {
-      // Revert if we have a backup and target got messed up
+      // Revert if backup exists
       try {
         if (await backup.exists()) {
           await backup.copy(target.path);
