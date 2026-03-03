@@ -42,7 +42,9 @@ class SessionState {
 
 void _openCloseApp(BuildContext context) {
   Navigator.push(
-      context, MaterialPageRoute(builder: (_) => const CloseAppScreen()));
+    context,
+    MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+  );
 }
 
 Future<String?> _promptForWord(BuildContext context) async {
@@ -123,12 +125,14 @@ class LaunchScreen extends StatelessWidget {
       SessionState.lastWord = e.word;
       if (!SessionState.history.contains(e.word)) SessionState.history.add(e.word);
       Navigator.push(
-          context, MaterialPageRoute(builder: (_) => WordScreen(word: e.word)));
+        context,
+        MaterialPageRoute(builder: (_) => WordScreen(word: e.word)),
+      );
     } else {
       Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => WordNotFoundScreen(typed: upper)));
+        context,
+        MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)),
+      );
     }
   }
 
@@ -147,13 +151,17 @@ class LaunchScreen extends StatelessWidget {
         _Btn('CLICK HERE FOR A RANDOM WORD',
             onTap: () => _pushRandomWordOrNoMore(context)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
+          );
         }),
         _Btn('CLICK HERE TO SEARCH FOR A WORD', onTap: () => _search(context)),
         _Btn('UPDATE WORD LIBRARY (LAST: 2026-02-20)', onTap: () {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const UpdateWordLibraryScreen()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const UpdateWordLibraryScreen()),
+          );
         }),
       ],
     );
@@ -206,10 +214,14 @@ class _WordScreenState extends State<WordScreen> with RouteAware {
       SessionState.lastWord = e.word;
       if (!SessionState.history.contains(e.word)) SessionState.history.add(e.word);
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => WordScreen(word: e.word)));
+        context,
+        MaterialPageRoute(builder: (_) => WordScreen(word: e.word)),
+      );
     } else {
-      Navigator.push(context,
-          MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)),
+      );
     }
   }
 
@@ -223,50 +235,42 @@ class _WordScreenState extends State<WordScreen> with RouteAware {
     final etymology = e?.etymology ?? '';
     final example = e?.example ?? '';
 
-    return ValueListenableBuilder<String?>(
-      valueListenable: TtsService.speakingText,
-      builder: (_, speaking, __) {
-        final emphasize =
-            (speaking ?? '').toUpperCase() == widget.word.toUpperCase();
-
-        return _Frame(
-          title: widget.word,
-          underlineStyle: UnderlineStyle.short,
-          emphasizeTitle: emphasize,
-          onCloseApp: () => _openCloseApp(context),
-          children: [
-            _Btn('LISTEN TO WORD', onTap: () async {
-              final ok = await TtsService.speak(widget.word);
-              if (!ok && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Text-to-speech unavailable on this device.')),
-                );
-              }
-            }),
-            const SizedBox(height: 14),
-            _LabelBlock(heading: 'DICTIONARY', body: source),
-            _LabelBlock(heading: 'PHONETIC PRONUNCIATION', body: phonetic),
-            _LabelBlock(heading: 'DEFINITION', body: definition),
-            _LabelBlock(heading: 'ETYMOLOGY', body: etymology),
-            _LabelBlock(heading: 'EXAMPLE', body: example),
-            const SizedBox(height: 10),
-            _Btn('NEW RANDOM WORD',
-                onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
-            _Btn('RANDOMIZER SETTINGS', onTap: () {
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const RandomizerSettingsScreen()));
-            }),
-            _Btn('SEARCH FOR A WORD', onTap: () => _search(context)),
-            _Btn('HISTORY', onTap: () {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const HistoryScreen()));
-            }),
-          ],
-        );
-      },
+    return _Frame(
+      title: widget.word,
+      underlineStyle: UnderlineStyle.short,
+      onCloseApp: () => _openCloseApp(context),
+      children: [
+        _Btn('LISTEN TO WORD', onTap: () async {
+          final ok = await TtsService.speak(widget.word);
+          if (!ok && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Text-to-speech unavailable on this device.')),
+            );
+          }
+        }),
+        const SizedBox(height: 14),
+        _LabelBlock(heading: 'DICTIONARY', body: source),
+        _LabelBlock(heading: 'PHONETIC PRONUNCIATION', body: phonetic),
+        _LabelBlock(heading: 'DEFINITION', body: definition),
+        _LabelBlock(heading: 'ETYMOLOGY', body: etymology),
+        _LabelBlock(heading: 'EXAMPLE', body: example),
+        const SizedBox(height: 10),
+        _Btn('NEW RANDOM WORD',
+            onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
+        _Btn('RANDOMIZER SETTINGS', onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
+          );
+        }),
+        _Btn('SEARCH FOR A WORD', onTap: () => _search(context)),
+        _Btn('HISTORY', onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const HistoryScreen()),
+          );
+        }),
+      ],
     );
   }
 }
@@ -303,12 +307,16 @@ class NoMoreWordsAvailableScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
+          );
         }),
         _Btn('HISTORY', onTap: () {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const HistoryScreen()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const HistoryScreen()),
+          );
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
@@ -374,7 +382,9 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
               SessionState.lastWord = s;
               if (!SessionState.history.contains(s)) SessionState.history.add(s);
               Navigator.pushReplacement(
-                  context, MaterialPageRoute(builder: (_) => WordScreen(word: s)));
+                context,
+                MaterialPageRoute(builder: (_) => WordScreen(word: s)),
+              );
             }),
         const SizedBox(height: 10),
         _Btn('RETURN TO SEARCH', onTap: () async {
@@ -387,24 +397,30 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
           if (e != null) {
             SessionState.lastWord = e.word;
             if (!SessionState.history.contains(e.word)) SessionState.history.add(e.word);
-            Navigator.pushReplacement(context,
-                MaterialPageRoute(builder: (_) => WordScreen(word: e.word)));
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => WordScreen(word: e.word)),
+            );
           } else {
             Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => WordNotFoundScreen(typed: upper)));
+              context,
+              MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)),
+            );
           }
         }),
         _Btn('NEW RANDOM WORD',
             onTap: () => _pushRandomWordOrNoMore(context, replace: true)),
         _Btn('RANDOMIZER SETTINGS', onTap: () {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
+          );
         }),
         _Btn('HISTORY', onTap: () {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const HistoryScreen()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const HistoryScreen()),
+          );
         }),
       ],
     );
@@ -428,14 +444,11 @@ class RandomizerSettingsScreen extends StatelessWidget {
         const SizedBox(height: 18),
         const Text('LETTER FILTER', textAlign: TextAlign.center),
         const SizedBox(height: 10),
-        const Text('[A][B][C][D][E][F][G][H][I]',
-            textAlign: TextAlign.center),
-        const Text('[J][K][L][M][N][O][P][Q][R]',
-            textAlign: TextAlign.center),
+        const Text('[A][B][C][D][E][F][G][H][I]', textAlign: TextAlign.center),
+        const Text('[J][K][L][M][N][O][P][Q][R]', textAlign: TextAlign.center),
         const Text('[S][T][U][V][W][X][Y][Z]', textAlign: TextAlign.center),
         const SizedBox(height: 18),
-        const Text('"Tiny constraints, enormous consequences."',
-            textAlign: TextAlign.center),
+        const Text('"Tiny constraints, enormous consequences."', textAlign: TextAlign.center),
         const SizedBox(height: 18),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
@@ -488,12 +501,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
           _Btn(w, onTap: () {
             SessionState.lastWord = w;
             Navigator.pushReplacement(
-                context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
+              context,
+              MaterialPageRoute(builder: (_) => WordScreen(word: w)),
+            );
           }),
         const SizedBox(height: 14),
         _Btn('CLEAR HISTORY', onTap: () {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const ClearHistoryConfirmScreen()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ClearHistoryConfirmScreen()),
+          );
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
@@ -518,8 +535,10 @@ class ClearHistoryConfirmScreen extends StatelessWidget {
         const SizedBox(height: 16),
         _Btn('YES, CLEAR HISTORY', onTap: () {
           SessionState.history.clear();
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const HistoryClearedScreen()));
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HistoryClearedScreen()),
+          );
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
@@ -539,7 +558,8 @@ class HistoryClearedScreen extends StatelessWidget {
       children: [
         const Text(
           '"Your lexical footprints have been gently\nun-footprinted."',
-          textAlign: TextAlign.center),
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 14),
         _Btn('OKAY', onTap: () {
           Navigator.pushAndRemoveUntil(
@@ -568,17 +588,17 @@ class UpdateWordLibraryScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
-        const Text('[this is how you update this app’s word library]',
-            textAlign: TextAlign.center),
+        const Text('[this is how you update this app’s word library]', textAlign: TextAlign.center),
         const SizedBox(height: 10),
-        const Text('This may take up to:  A WHILE',
-            textAlign: TextAlign.center),
+        const Text('This may take up to:  A WHILE', textAlign: TextAlign.center),
         const SizedBox(height: 10),
         const Text('Last updated:  2026-02-20', textAlign: TextAlign.center),
         const SizedBox(height: 16),
         _Btn('PROCEED', onTap: () {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const UpdateInProgressScreen()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const UpdateInProgressScreen()),
+          );
         }),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
@@ -609,11 +629,15 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
       if (!mounted) return;
 
       if (result.success) {
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => const UpdateCompleteScreen()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const UpdateCompleteScreen()),
+        );
       } else {
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => const UpdateFailedScreen()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const UpdateFailedScreen()),
+        );
       }
     });
   }
@@ -630,8 +654,7 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
           textAlign: TextAlign.center,
         ),
         SizedBox(height: 14),
-        Text('PROGRESS:  [██████████░░░░░░░░░░░░]',
-            textAlign: TextAlign.center),
+        Text('PROGRESS:  [██████████░░░░░░░░░░░░]', textAlign: TextAlign.center),
       ],
     );
   }
@@ -679,8 +702,10 @@ class UpdateFailedScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
-        const Text('No connection detected. Try again when you’re online.',
-            textAlign: TextAlign.center),
+        const Text(
+          'No connection detected. Try again when you’re online.',
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 14),
         _Btn('OKAY', onTap: () {
           Navigator.pushAndRemoveUntil(
@@ -713,8 +738,10 @@ class CloseAppScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
-        const Text('Your word history will be cleared when you close\nthe app.',
-            textAlign: TextAlign.center),
+        const Text(
+          'Your word history will be cleared when you close\nthe app.',
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 16),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
@@ -734,8 +761,6 @@ class _Frame extends StatelessWidget {
   final VoidCallback? onCloseApp;
   final bool showCloseApp;
 
-  final bool emphasizeTitle;
-
   const _Frame({
     required this.title,
     this.underlineStyle = UnderlineStyle.normal,
@@ -743,7 +768,6 @@ class _Frame extends StatelessWidget {
     required this.children,
     this.onCloseApp,
     this.showCloseApp = true,
-    this.emphasizeTitle = false,
   });
 
   @override
@@ -767,11 +791,7 @@ class _Frame extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight:
-                      emphasizeTitle ? FontWeight.bold : FontWeight.normal,
-                ),
+                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.normal),
               ),
               const SizedBox(height: 4),
               Text(underline, textAlign: TextAlign.center),
@@ -813,8 +833,7 @@ class _Btn extends StatelessWidget {
           backgroundColor: const Color(0xFF1A1C22),
           foregroundColor: const Color(0xFFB86B6B),
           padding: EdgeInsets.symmetric(vertical: small ? 10 : 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
         onPressed: onTap,
         child: Text(text, textAlign: TextAlign.center),
@@ -836,8 +855,7 @@ class _CornerBtn extends StatelessWidget {
         backgroundColor: const Color(0xFF1A1C22),
         foregroundColor: const Color(0xFFB86B6B),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       onPressed: onTap,
       child: Text(text, textAlign: TextAlign.center),
@@ -859,8 +877,7 @@ class _MiniNavBtn extends StatelessWidget {
           backgroundColor: const Color(0xFF1A1C22),
           foregroundColor: const Color(0xFFB86B6B),
           padding: const EdgeInsets.symmetric(vertical: 10),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
         onPressed: onTap,
         child: Text(text, textAlign: TextAlign.center),
