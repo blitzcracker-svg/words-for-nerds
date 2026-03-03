@@ -1,3 +1,5 @@
+// lib/main.dart
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -7,27 +9,14 @@ import 'models/word_entry.dart';
 import 'services/library_service.dart';
 import 'services/update_service.dart';
 
-final RouteObserver<PageRoute<dynamic>> routeObserver =
-    RouteObserver<PageRoute<dynamic>>();
-
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await LibraryService.instance.initFromAsset();
-  runApp(const WordsForNerdsApp());
-}
 
-/// Session-only memory (clears when the OS kills the app / user closes it).
-class SessionState {
-  static final List<String> history = [];
-  static String? lastWord;
-
-  // Randomizer settings (default on app launch)
-  static int minLen = 1;
-  static int maxLen = 45;
-
-  // Letter filter: if empty => all letters allowed.
-  // If user selects multiple letters => word must contain ALL selected letters (AND).
-  static final Set<String> requiredLetters = {};
+  runZonedGuarded(() {
+    runApp(const WordsForNerdsApp());
+  }, (error, stack) {
+    // Keep silent (minimal). BootGate will show an error screen if init fails.
+  });
 }
 
 class WordsForNerdsApp extends StatelessWidget {
@@ -38,80 +27,321 @@ class WordsForNerdsApp extends StatelessWidget {
     return MaterialApp(
       title: 'WORDS FOR NERDS',
       debugShowCheckedModeBanner: true,
-      navigatorObservers: [routeObserver],
       theme: ThemeData(
         brightness: Brightness.dark,
+        scaffoldBackgroundColor: _Theme.bg,
         fontFamily: 'Times New Roman',
-        scaffoldBackgroundColor: _Colors.bg,
-        snackBarTheme: const SnackBarThemeData(
-          behavior: SnackBarBehavior.floating,
-        ),
       ),
-      home: const LaunchScreen(),
+      home: const BootGate(),
     );
   }
 }
 
-/* ----------------------------- VISUAL CONSTANTS ---------------------------- */
+/* ----------------------------- Session State ---------------------------- */
 
-class _Colors {
-  static const bg = Color(0xFF0B0C10);
-  static const panel = Color(0xFF161821);
-  static const panel2 = Color(0xFF12141B);
-  static const border = Color(0xFF242837);
+class SessionState {
+  static final List<String> history = <String>[];
+  static String? lastWord;
 
-  static const text = Color(0xFFEDEDED);
-  static const muted = Color(0xFFB8B8B8);
+  static int minLetters = 1;
+  static int maxLetters = 45;
 
-  static const accent = Color(0xFFB06B6B); // burgundy-ish
+  // Letters user requires to appear in the word (AND)
+  static final Set<String> requiredLetters = <String>{};
+
+  static void clearSession() {
+    history.clear();
+    lastWord = null;
+    minLetters = 1;
+    maxLetters = 45;
+    requiredLetters.clear();
+  }
 }
+
+/* --------------------------------- Theme -------------------------------- */
+
+class _Theme {
+  static const Color bg = Colors.black;
+  static const Color panel = Color(0xFF14161A);
+  static const Color panel2 = Color(0xFF111216);
+  static const Color text = Color(0xFFEDEDED);
+  static const Color muted = Color(0xFFB9B9B9);
+  static const Color btnText = Color(0xFF8B3A3A); // burgundy
+  static const Color border = Color(0xFF2B2E35);
+
+  static const double radius = 18;
+}
+
+/* ------------------------------ Random Pools ---------------------------- */
 
 final Random _rng = Random();
 
-String _pick<T>(List<T> xs) => xs[_rng.nextInt(xs.length)] as String;
-
 String _underline() {
-  final len = 14 + _rng.nextInt(10); // 14..23
-  return List.filled(len, '_').join();
+  const chars = ['_', '-', '─', '—'];
+  final len = 18 + _rng.nextInt(12); // 18..29
+  final ch = chars[_rng.nextInt(chars.length)];
+  return List.filled(len, ch).join();
 }
 
+String _pick(List<String> items) => items[_rng.nextInt(items.length)];
+
+final List<String> _facesHappy = [
+  '(≧ω≦)',
+  '(＾▽＾)',
+  '(•‿•)',
+  '(ᵔᴥᵔ)',
+  '(✿◕‿◕)',
+  '(ﾉ◕ヮ◕)ﾉ',
+  '(ง ͠° ͟ʖ ͡°)ง',
+  '(｀▽´)',
+  '(•̀ᴗ•́)و',
+  '(ﾉﾟ▽ﾟ)ﾉ',
+];
+
+final List<String> _facesInquisitive = [
+  '(¬‿¬)',
+  '(•_•)',
+  '(•_•) ( •_•)>⌐■-■',
+  '(￢_￢)',
+  '(ಠ_ಠ)',
+  '(ʘ‿ʘ)',
+  '(⊙_☉)',
+  '(・_・;)',
+  '(•͈⌔•͈)',
+  '(~_~;)',
+];
+
+final List<String> _facesSad = [
+  '(；＿；)',
+  '(╥_╥)',
+  '(ಥ﹏ಥ)',
+  '(T_T)',
+  '(；﹏；)',
+  '(︶︹︺)',
+  '(；︵；)',
+  '(╯︵╰)',
+  '(；-；)',
+  '(;_;)',
+];
+
+final List<String> _facesAloof = [
+  '(=_=)',
+  '(¬_¬)',
+  '(・_・)',
+  '(￣ー￣)',
+  '(ー_ー)',
+  '(=_=) zZ',
+  '(._.)',
+  '( ͡° ͜ʖ ͡°)',
+  '(￣.￣)',
+  '( -_- )',
+];
+
+final List<String> _facesPanic = [
+  '(⊙﹏⊙)',
+  '(；ﾟДﾟ)',
+  '(°ロ°)',
+  '(╯°□°）╯',
+  '(☉_☉)',
+  '(; ﾟДﾟ)',
+  '(°□°;)',
+  '(；￣Д￣)',
+  '(ᗒᗣᗕ)՞',
+  '(>_<)',
+];
+
+final List<String> _facesZen = [
+  '(－‸ლ)',
+  '(˘⌣˘)',
+  '( ᵕ‿ᵕ )',
+  '(´－｀)',
+  '(¯―¯)',
+  '(￣︶￣)',
+  '( •‿• )',
+  '(˙‿˙)',
+  '(⌁‿⌁)',
+  '( -‿- )',
+];
+
+final List<String> _greetings = [
+  'HELLO, LEXICON PILGRIM.',
+  'WELCOME TO THE WORD-REALM.',
+  'GREETINGS, SYLLABLE COLLECTOR.',
+  'SALUTATIONS, MEANING-SEEKER.',
+  'AH. YOU HAVE ARRIVED, VERBALLY.',
+  'ENTER, FRIEND OF NUANCE.',
+  'TODAY WE GROW A NEW TONGUE.',
+  'WELCOME. MAY YOUR WORDS BE WEIRD.',
+  'HELLO. LET US IMPROVE YOUR MOUTH-BRAIN.',
+  'GREETINGS. THE DICTIONARY AWAITS.',
+];
+
+final List<String> _launchQuotes = [
+  '"Vocabulary growth is a quiet kind of rebellion."',
+  '"A word is a small tool that moves a large mind."',
+  '"Every new term is a new handle on reality."',
+  '"Language expands where curiosity refuses to stop."',
+  '"Meaning is a mirror—this app just tilts it."',
+  '"The brain likes new words. The ego pretends it doesn’t."',
+  '"Today: fewer blanks. Tomorrow: fewer limits."',
+  '"Your lexicon is a living organism. Feed it."',
+  '"Precision is power, disguised as syllables."',
+  '"One word at a time: the inner world upgrades."',
+];
+
+final List<String> _settingsQuotes = [
+  '"Adjust the constraints. Observe the mind squirm, then stretch."',
+  '"Choose your limits. Then watch language step over them anyway."',
+  '"Tiny toggles, colossal consequences."',
+  '"The generator obeys. The ego negotiates."',
+  '"Filter the chaos. Manufacture revelation."',
+  '"You are the architect of what gets allowed to exist."',
+  '"Select letters. Summon outcomes. Pretend it was inevitable."',
+  '"Boundaries are funny. Words love hopping fences."',
+  '"Dial the parameters. Reality gets more articulate."',
+  '"Constrain the search. Expand the self. Somehow both."',
+];
+
+final List<String> _updateTeases = [
+  'Hunting fresher words in the wild…',
+  'Shaking the library tree for new leaves…',
+  'Negotiating with the universe for sharper definitions…',
+  'Asking the internet politely for more language…',
+  'Gathering syllables. One packet at a time…',
+  'Coaxing updates into existence…',
+  'Summoning a newer lexicon…',
+];
+
+final List<String> _noMorePhrases = [
+  'No more words match your current constraints.',
+  'The generator searched. Reality shrugged.',
+  'Your filters are too mighty. Nothing survives them.',
+  'The word-pool is empty under these rules.',
+  'Language tapped out—temporarily.',
+  'Constraint victory: zero results.',
+];
+
+final List<String> _historyClearPhrases = [
+  'This will erase your history. Like it never happened.',
+  'Are you sure you want to un-remember these words?',
+  'This is the big red button, but in polite font.',
+  'Your history is about to vanish into tasteful silence.',
+  'Confirm: obliterate the evidence of learning.',
+  'Proceed to delete the footprints of your lexicon-journey?',
+];
+
+final List<String> _historyClearedPhrases = [
+  'History dissolved into elegant nothingness.',
+  'The archive has been politely unmade.',
+  'Your word-trail has been vaporized with decorum.',
+  'All prior generations: respectfully erased.',
+  'The record is gone. The mind remains.',
+  'Clean slate achieved; meaning remains undefeated.',
+];
+
+/* ------------------------------- Boot Gate ------------------------------ */
+
+class BootGate extends StatefulWidget {
+  const BootGate({super.key});
+
+  @override
+  State<BootGate> createState() => _BootGateState();
+}
+
+class _BootGateState extends State<BootGate> {
+  bool _ready = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      await LibraryService.instance.initFromAsset();
+      setState(() => _ready = true);
+    } catch (e) {
+      setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_ready) return const LaunchScreen();
+
+    if (_error == null) {
+      return const Scaffold(
+        backgroundColor: _Theme.bg,
+        body: Center(
+          child: Text(
+            'Loading…',
+            style: TextStyle(
+              fontFamily: 'Times New Roman',
+              fontSize: 22,
+              color: _Theme.text,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: _Theme.bg,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Text(
+            'Startup failed:\n\n$_error',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: 'Times New Roman',
+              fontSize: 18,
+              color: _Theme.text,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/* ------------------------------ UI Helpers ------------------------------ */
+
 TextStyle _titleStyle() => const TextStyle(
-      fontSize: 34,
-      letterSpacing: 1.2,
-      color: _Colors.text,
+      fontFamily: 'Times New Roman',
+      fontSize: 38,
+      letterSpacing: 1.0,
+      color: _Theme.text,
       fontWeight: FontWeight.w500,
     );
 
-TextStyle _underlineStyle() => const TextStyle(
-      fontSize: 14,
-      letterSpacing: 1.0,
-      color: _Colors.muted,
-    );
-
-TextStyle _sectionHeaderStyle() => const TextStyle(
+TextStyle _hStyle() => const TextStyle(
+      fontFamily: 'Times New Roman',
       fontSize: 18,
-      fontWeight: FontWeight.w600,
-      color: _Colors.text,
-      letterSpacing: 0.3,
+      color: _Theme.text,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.5,
     );
 
 TextStyle _bodyStyle() => const TextStyle(
+      fontFamily: 'Times New Roman',
       fontSize: 18,
-      height: 1.45,
-      color: _Colors.text,
+      color: _Theme.text,
+      height: 1.4,
     );
 
 TextStyle _mutedStyle() => const TextStyle(
-      fontSize: 16,
-      height: 1.35,
-      color: _Colors.muted,
+      fontFamily: 'Times New Roman',
+      fontSize: 18,
+      color: _Theme.muted,
+      height: 1.4,
     );
-
-/* --------------------------------- BUTTONS -------------------------------- */
 
 class _Btn extends StatelessWidget {
   final String label;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
   final bool small;
   final bool enabled;
 
@@ -124,43 +354,30 @@ class _Btn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveOnTap = enabled ? onTap : null;
+    final padV = small ? 14.0 : 18.0;
+    final fontSize = small ? 16.0 : 18.0;
 
     return Opacity(
-      opacity: enabled ? 1.0 : 0.45,
-      child: InkWell(
-        onTap: effectiveOnTap,
-        borderRadius: BorderRadius.circular(16),
+      opacity: enabled ? 1 : 0.45,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
         child: Container(
           width: double.infinity,
-          padding: EdgeInsets.symmetric(
-            vertical: small ? 14 : 18,
-            horizontal: 16,
-          ),
+          padding: EdgeInsets.symmetric(vertical: padV, horizontal: 18),
           decoration: BoxDecoration(
-            color: _Colors.panel,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _Colors.border, width: 1),
-            boxShadow: const [
-              BoxShadow(
-                blurRadius: 10,
-                spreadRadius: 0,
-                offset: Offset(0, 2),
-                color: Colors.black26,
-              ),
-            ],
+            color: _Theme.panel,
+            borderRadius: BorderRadius.circular(_Theme.radius),
+            border: Border.all(color: _Theme.border, width: 1),
           ),
           child: Center(
             child: Text(
               label,
               textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: _Colors.accent,
-                fontSize: small ? 16 : 18,
+                fontFamily: 'Times New Roman',
+                fontSize: fontSize,
                 letterSpacing: 0.8,
-                fontWeight: FontWeight.w500,
+                color: _Theme.btnText,
               ),
             ),
           ),
@@ -170,102 +387,90 @@ class _Btn extends StatelessWidget {
   }
 }
 
-class _InlineLink extends StatelessWidget {
+class _CornerBtn extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _InlineLink(this.label, {required this.onTap});
+  const _CornerBtn(this.label, {required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: const Text(
-        '',
-        style: TextStyle(
-          color: _Colors.accent,
-          fontSize: 16,
-          decoration: TextDecoration.underline,
-        ),
+    return SizedBox(
+      width: 118,
+      child: _Btn(label, onTap: onTap, small: true),
+    );
+  }
+}
+
+class _ArrowBtn extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  const _ArrowBtn(this.label, {required this.onTap, this.enabled = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: _Btn(
+        label,
+        onTap: onTap,
+        small: true,
+        enabled: enabled,
       ),
     );
   }
 }
 
-/* ---------------------------------- FRAME --------------------------------- */
-/*
-  Universal layout fix:
-  - All content scrolls (so no overflow on small phones).
-  - CLOSE APP sits in a dedicated bottom-right strip OUTSIDE the scroll area
-    (so it never covers your bottom buttons).
-*/
-
 class _Frame extends StatelessWidget {
   final String title;
-  final String underlineText;
-  final String? face;
   final List<Widget> children;
-
-  final bool showCloseApp;
-  final VoidCallback? onCloseApp;
+  final String? face;
+  final Widget? cornerCloseApp;
+  final bool addBottomClearance;
 
   const _Frame({
     required this.title,
-    required this.underlineText,
     required this.children,
     this.face,
-    this.showCloseApp = true,
-    this.onCloseApp,
+    this.cornerCloseApp,
+    this.addBottomClearance = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final underline = _underline();
+
     return Scaffold(
-      backgroundColor: _Colors.bg,
+      backgroundColor: _Theme.bg,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(child: Text(title, style: _titleStyle())),
-                    const SizedBox(height: 8),
-                    Center(child: Text(underlineText, style: _underlineStyle())),
-                    if (face != null) ...[
-                      const SizedBox(height: 14),
-                      Center(child: Text(face!, style: _mutedStyle())),
-                    ],
-                    const SizedBox(height: 18),
-                    ...children,
-                    const SizedBox(height: 10),
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(title, textAlign: TextAlign.center, style: _titleStyle()),
+                  const SizedBox(height: 8),
+                  Text(underline,
+                      textAlign: TextAlign.center, style: _mutedStyle()),
+                  if (face != null) ...[
+                    const SizedBox(height: 12),
+                    Text(face!,
+                        textAlign: TextAlign.center, style: _mutedStyle()),
                   ],
-                ),
+                  const SizedBox(height: 18),
+                  ...children,
+                  if (addBottomClearance) const SizedBox(height: 110),
+                ],
               ),
             ),
-            if (showCloseApp)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-                child: Align(
-                  alignment: Alignment.bottomRight,
-                  child: SizedBox(
-                    width: 170,
-                    child: _Btn(
-                      'CLOSE APP',
-                      small: true,
-                      onTap: onCloseApp ??
-                          () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const CloseAppScreen()),
-                            );
-                          },
-                    ),
-                  ),
-                ),
+            if (cornerCloseApp != null)
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: cornerCloseApp!,
               ),
           ],
         ),
@@ -274,7 +479,125 @@ class _Frame extends StatelessWidget {
   }
 }
 
-/* ------------------------------- LAUNCH SCREEN ------------------------------ */
+/* --------------------------- Navigation Helpers -------------------------- */
+
+Future<String?> _promptForWord(BuildContext context) async {
+  final ctrl = TextEditingController();
+  String? result;
+
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) {
+      final face = _pick(_facesInquisitive);
+      final quote = 'A small spell: reveal a word.';
+      return AlertDialog(
+        backgroundColor: _Theme.panel2,
+        title: Column(
+          children: [
+            Text('SEARCH FOR A WORD',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Times New Roman',
+                  fontSize: 18,
+                  color: _Theme.text,
+                  letterSpacing: 1,
+                )),
+            const SizedBox(height: 8),
+            Text(_underline(),
+                textAlign: TextAlign.center, style: _mutedStyle()),
+            const SizedBox(height: 10),
+            Text(face, textAlign: TextAlign.center, style: _mutedStyle()),
+            const SizedBox(height: 8),
+            Text(quote, textAlign: TextAlign.center, style: _mutedStyle()),
+          ],
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textInputAction: TextInputAction.search,
+          style: const TextStyle(
+            fontFamily: 'Times New Roman',
+            fontSize: 18,
+            color: _Theme.text,
+          ),
+          decoration: const InputDecoration(
+            hintText: 'Type a word',
+            hintStyle: TextStyle(
+              fontFamily: 'Times New Roman',
+              color: _Theme.muted,
+            ),
+          ),
+          onSubmitted: (_) {
+            result = ctrl.text.trim();
+            Navigator.pop(ctx);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              result = null;
+              Navigator.pop(ctx);
+            },
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(
+                fontFamily: 'Times New Roman',
+                color: _Theme.btnText,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              result = ctrl.text.trim();
+              Navigator.pop(ctx);
+            },
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                fontFamily: 'Times New Roman',
+                color: _Theme.btnText,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  return result?.trim().isEmpty == true ? null : result;
+}
+
+String? _generateNextWord() {
+  final all = LibraryService.instance.allWords;
+
+  final minL = SessionState.minLetters;
+  final maxL = SessionState.maxLetters;
+  final req = SessionState.requiredLetters.map((e) => e.toUpperCase()).toList();
+
+  final pool = <String>[];
+
+  for (final w in all) {
+    if (w.length < minL || w.length > maxL) continue;
+    if (SessionState.history.contains(w)) continue;
+
+    bool ok = true;
+    for (final r in req) {
+      if (!w.contains(r)) {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok) continue;
+
+    pool.add(w);
+  }
+
+  if (pool.isEmpty) return null;
+  return pool[_rng.nextInt(pool.length)];
+}
+
+/* -------------------------------- Screens -------------------------------- */
 
 class LaunchScreen extends StatefulWidget {
   const LaunchScreen({super.key});
@@ -284,116 +607,104 @@ class LaunchScreen extends StatefulWidget {
 }
 
 class _LaunchScreenState extends State<LaunchScreen> {
-  late final String _face;
-  late final String _quote;
-
-  static const _launchFaces = [
-    '(≧▽≦)',
-    '(＾▽＾)',
-    '(•‿•)',
-    '(¬‿¬)',
-    '(ง’̀-’̀)ง',
-    '(ᵔᴥᵔ)',
-  ];
-
-  static const _launchQuotes = [
-    '"Lexical evolution is a strange little mirror."',
-    '"Words are small machines for moving thought."',
-    '"Vocabulary grows where curiosity lingers."',
-    '"A single syllable can change a whole mood."',
-    '"Meaning is slippery; that is why this is fun."',
-  ];
+  String _lastUpdated = 'Bundled';
 
   @override
   void initState() {
     super.initState();
-    _face = _pick(_launchFaces);
-    _quote = _pick(_launchQuotes);
+    _loadLastUpdated();
   }
 
-  void _goWord(BuildContext context) {
-    final w = _pickRandomAllowedWord();
-    if (w == null) {
-      Navigator.push(
-          context, MaterialPageRoute(builder: (_) => const NoMoreWordsScreen()));
-      return;
-    }
+  Future<void> _loadLastUpdated() async {
+    final v = await LibraryService.instance.lastUpdatedLabel();
+    if (mounted) setState(() => _lastUpdated = v);
+  }
+
+  void _goRandomWord() {
+    final w = _generateNextWord() ?? _pick(LibraryService.instance.allWords);
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => WordScreen(word: w)),
+    );
   }
 
-  Future<void> _search(BuildContext context) async {
+  void _goSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
+    );
+  }
+
+  Future<void> _search() async {
     final typed = await _promptForWord(context);
     if (typed == null) return;
 
     final upper = typed.trim().toUpperCase();
-    if (upper.isEmpty) return;
-
     final entry = LibraryService.instance.lookup(upper);
+
     if (entry != null) {
-      SessionState.lastWord = entry.word;
-      if (!SessionState.history.contains(entry.word)) {
-        SessionState.history.add(entry.word);
-      }
+      SessionState.lastWord = upper;
+      if (!SessionState.history.contains(upper)) SessionState.history.add(upper);
+
       Navigator.push(
-          context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
+        context,
+        MaterialPageRoute(builder: (_) => WordScreen(word: upper)),
+      );
     } else {
-      Navigator.push(context,
-          MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)),
+      );
     }
   }
 
-  void _openSettings(BuildContext context) {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
-  }
-
-  void _openUpdate(BuildContext context) {
+  Future<void> _updateLibrary() async {
     Navigator.push(
-        context, MaterialPageRoute(builder: (_) => const UpdateWordLibraryScreen()));
+      context,
+      MaterialPageRoute(builder: (_) => const UpdateInProgressScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final face = _pick(_facesHappy);
+    final greeting = _pick(_greetings);
+    final quote = _pick(_launchQuotes);
+
     return _Frame(
       title: 'WORDS FOR NERDS',
-      underlineText: _underline(),
-      face: _face,
+      face: face,
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
       children: [
-        Center(
-            child: Text(_quote,
-                style: _mutedStyle(), textAlign: TextAlign.center)),
+        Text(greeting, textAlign: TextAlign.center, style: _mutedStyle()),
+        const SizedBox(height: 10),
+        Text(quote, textAlign: TextAlign.center, style: _mutedStyle()),
+        const SizedBox(height: 28),
+
+        _Btn('CLICK HERE FOR A RANDOM WORD', onTap: _goRandomWord),
+        const SizedBox(height: 18),
+
+        _Btn('CLICK HERE TO SEARCH FOR A WORD', onTap: _search),
+        const SizedBox(height: 18),
+
+        _Btn('RANDOMIZER SETTINGS', onTap: _goSettings),
         const SizedBox(height: 22),
-        _Btn('CLICK HERE FOR A RANDOM WORD', onTap: () => _goWord(context)),
-        const SizedBox(height: 16),
-        _Btn('CLICK HERE TO SEARCH FOR A WORD', onTap: () => _search(context)),
-        const SizedBox(height: 16),
-        _Btn('RANDOMIZER SETTINGS', onTap: () => _openSettings(context)),
-        const SizedBox(height: 16),
-        FutureBuilder<String>(
-          future: LibraryService.instance.lastUpdatedLabel(),
-          builder: (context, snap) {
-            final raw = snap.data ?? 'Bundled';
-            final nice = _prettyIsoOrBundled(raw);
-            return _Btn(
-              'UPDATE WORD LIBRARY (LAST: $nice)',
-              onTap: () => _openUpdate(context),
-            );
-          },
-        ),
+
+        _Btn('UPDATE WORD LIBRARY (LAST: $_lastUpdated)', onTap: _updateLibrary),
       ],
     );
   }
 }
 
-String _prettyIsoOrBundled(String raw) {
-  if (raw == 'Bundled') return 'BUNDLED';
-  if (raw.length >= 10) return raw.substring(0, 10);
-  return raw.toUpperCase();
-}
-
-/* ------------------------------- WORD SCREEN ------------------------------- */
+/* ------------------------------- Word Screen ------------------------------ */
 
 class WordScreen extends StatefulWidget {
   final String word;
@@ -404,135 +715,149 @@ class WordScreen extends StatefulWidget {
   State<WordScreen> createState() => _WordScreenState();
 }
 
-class _WordScreenState extends State<WordScreen> with RouteAware {
-  static const MethodChannel _tts = MethodChannel('words_for_nerds/tts');
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final r = ModalRoute.of(context);
-    if (r is PageRoute) routeObserver.subscribe(this, r);
-  }
-
-  @override
-  void dispose() {
-    routeObserver.unsubscribe(this);
-    super.dispose();
-  }
+class _WordScreenState extends State<WordScreen> {
+  static const MethodChannel _tts =
+      MethodChannel('words_for_nerds/tts'); // must match MainActivity.kt
 
   Future<void> _speak(String text) async {
     try {
-      final ok = await _tts.invokeMethod('speak', {'text': text});
-      if (ok != true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Text-to-speech unavailable on this device.')),
-        );
-      }
+      await _tts.invokeMethod('speak', {'text': text});
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Text-to-speech unavailable on this device.')),
+          content: Text(
+            'Text-to-speech unavailable on this device.',
+            style: TextStyle(fontFamily: 'Times New Roman'),
+          ),
+        ),
       );
     }
   }
 
-  Future<void> _search(BuildContext context) async {
+  void _newRandomWord() {
+    final w = _generateNextWord();
+    if (w == null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const NoMoreWordsScreen()),
+      );
+      return;
+    }
+
+    SessionState.lastWord = w;
+    if (!SessionState.history.contains(w)) SessionState.history.add(w);
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => WordScreen(word: w)),
+    );
+  }
+
+  void _goSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
+    );
+  }
+
+  void _goHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HistoryScreen()),
+    );
+  }
+
+  Future<void> _search() async {
     final typed = await _promptForWord(context);
     if (typed == null) return;
 
     final upper = typed.trim().toUpperCase();
-    if (upper.isEmpty) return;
-
     final entry = LibraryService.instance.lookup(upper);
+
     if (entry != null) {
-      SessionState.lastWord = entry.word;
-      if (!SessionState.history.contains(entry.word)) {
-        SessionState.history.add(entry.word);
-      }
+      SessionState.lastWord = upper;
+      if (!SessionState.history.contains(upper)) SessionState.history.add(upper);
+
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
+        context,
+        MaterialPageRoute(builder: (_) => WordScreen(word: upper)),
+      );
     } else {
-      Navigator.push(context,
-          MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
-    }
-  }
-
-  void _openSettings(BuildContext context) {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
-  }
-
-  void _openHistory(BuildContext context) {
-    Navigator.push(
-        context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
-  }
-
-  void _newRandomWord(BuildContext context) {
-    final w = _pickRandomAllowedWord();
-    if (w == null) {
       Navigator.push(
-          context, MaterialPageRoute(builder: (_) => const NoMoreWordsScreen()));
-      return;
+        context,
+        MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)),
+      );
     }
-    SessionState.lastWord = w;
-    if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
   @override
   Widget build(BuildContext context) {
-    final WordEntry? entry = LibraryService.instance.lookup(widget.word);
-    final title = widget.word.toUpperCase();
+    final entry = LibraryService.instance.lookup(widget.word);
+
+    // Fallback (shouldn't happen if library is consistent)
+    final WordEntry safe = entry ??
+        WordEntry(
+          word: widget.word,
+          phonetic: '',
+          definition: '',
+          etymology: '',
+          example: '',
+        );
 
     return _Frame(
-      title: title,
-      underlineText: _underline(),
+      title: safe.word,
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
       children: [
-        _Btn('LISTEN TO WORD', onTap: () => _speak(title)),
-        const SizedBox(height: 22),
-
-        Text('DICTIONARY', style: _sectionHeaderStyle()),
-        const SizedBox(height: 6),
-        // FIX: WordEntry model does not include a dictionary field.
-        Text('Offline library', style: _bodyStyle()),
-        const SizedBox(height: 16),
-
-        Text('PHONETIC PRONUNCIATION', style: _sectionHeaderStyle()),
-        const SizedBox(height: 6),
-        Text(entry?.phonetic ?? '(not available)', style: _bodyStyle()),
-        const SizedBox(height: 16),
-
-        Text('DEFINITION', style: _sectionHeaderStyle()),
-        const SizedBox(height: 6),
-        Text(entry?.definition ?? '(not available)', style: _bodyStyle()),
-        const SizedBox(height: 16),
-
-        Text('ETYMOLOGY', style: _sectionHeaderStyle()),
-        const SizedBox(height: 6),
-        Text(entry?.etymology ?? '(not available)', style: _bodyStyle()),
-        const SizedBox(height: 16),
-
-        Text('EXAMPLE', style: _sectionHeaderStyle()),
-        const SizedBox(height: 6),
-        Text(entry?.example ?? '(not available)', style: _bodyStyle()),
+        _Btn('LISTEN TO WORD', onTap: () => _speak(safe.word)),
         const SizedBox(height: 26),
 
-        _Btn('NEW RANDOM WORD', onTap: () => _newRandomWord(context)),
-        const SizedBox(height: 14),
-        _Btn('RANDOMIZER SETTINGS', onTap: () => _openSettings(context)),
-        const SizedBox(height: 14),
-        _Btn('HISTORY', onTap: () => _openHistory(context)),
-        const SizedBox(height: 14),
-        _Btn('SEARCH FOR A WORD', onTap: () => _search(context)),
+        Align(alignment: Alignment.centerLeft, child: Text('DICTIONARY', style: _hStyle())),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: Text('Offline library', style: _bodyStyle())),
+        const SizedBox(height: 18),
+
+        Align(alignment: Alignment.centerLeft, child: Text('PHONETIC PRONUNCIATION', style: _hStyle())),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: Text(safe.phonetic.isEmpty ? '-' : safe.phonetic, style: _bodyStyle())),
+        const SizedBox(height: 18),
+
+        Align(alignment: Alignment.centerLeft, child: Text('DEFINITION', style: _hStyle())),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: Text(safe.definition.isEmpty ? '-' : safe.definition, style: _bodyStyle())),
+        const SizedBox(height: 18),
+
+        Align(alignment: Alignment.centerLeft, child: Text('ETYMOLOGY', style: _hStyle())),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: Text(safe.etymology.isEmpty ? '-' : safe.etymology, style: _bodyStyle())),
+        const SizedBox(height: 18),
+
+        Align(alignment: Alignment.centerLeft, child: Text('EXAMPLE', style: _hStyle())),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: Text(safe.example.isEmpty ? '-' : safe.example, style: _bodyStyle())),
+        const SizedBox(height: 26),
+
+        _Btn('NEW RANDOM WORD', onTap: _newRandomWord),
+        const SizedBox(height: 18),
+
+        _Btn('RANDOMIZER SETTINGS', onTap: _goSettings),
+        const SizedBox(height: 18),
+
+        _Btn('HISTORY', onTap: _goHistory),
+        const SizedBox(height: 18),
+
+        _Btn('SEARCH FOR A WORD', onTap: _search),
       ],
     );
   }
 }
 
-/* ---------------------------- RANDOMIZER SETTINGS --------------------------- */
+/* --------------------------- Randomizer Settings -------------------------- */
 
 class RandomizerSettingsScreen extends StatefulWidget {
   const RandomizerSettingsScreen({super.key});
@@ -543,49 +868,16 @@ class RandomizerSettingsScreen extends StatefulWidget {
 }
 
 class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
-  late final String _face;
-  late final String _quote;
-
-  static const _faces = [
-    '( -_- )',
-    '( •_• )',
-    '(¬_¬ )',
-    '(¬‿¬ )',
-    '(ಠ_ಠ)',
-    '(︶︹︺)',
-  ];
-
-  static const _quotes = [
-    '"Constraint is a polite form of power."',
-    '"You are not limited; the letters are."',
-    '"Narrow the gate. Watch the mind complain."',
-    '"Your rules, your reality, your vocabulary."',
-    '"Reduce the pool. Enormous consequences."',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _face = _pick(_faces);
-    _quote = _pick(_quotes);
+  void _setMin(int v) {
+    v = v.clamp(1, 45);
+    if (v > SessionState.maxLetters) v = SessionState.maxLetters;
+    setState(() => SessionState.minLetters = v);
   }
 
-  void _bumpMin(int delta) {
-    setState(() {
-      SessionState.minLen = (SessionState.minLen + delta).clamp(1, 45);
-      if (SessionState.minLen > SessionState.maxLen) {
-        SessionState.maxLen = SessionState.minLen;
-      }
-    });
-  }
-
-  void _bumpMax(int delta) {
-    setState(() {
-      SessionState.maxLen = (SessionState.maxLen + delta).clamp(1, 45);
-      if (SessionState.maxLen < SessionState.minLen) {
-        SessionState.minLen = SessionState.maxLen;
-      }
-    });
+  void _setMax(int v) {
+    v = v.clamp(1, 45);
+    if (v < SessionState.minLetters) v = SessionState.minLetters;
+    setState(() => SessionState.maxLetters = v);
   }
 
   void _toggleLetter(String letter) {
@@ -600,128 +892,139 @@ class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final letters = List<String>.generate(
-      26,
-      (i) => String.fromCharCode('A'.codeUnitAt(0) + i),
-    );
+    final face = _pick(_facesAloof);
+    final quote = _pick(_settingsQuotes);
 
     return _Frame(
       title: 'RANDOMIZER SETTINGS',
-      underlineText: _underline(),
-      face: _face,
+      face: face,
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
       children: [
-        Center(
-          child: Text(
-            _quote,
-            style: _mutedStyle(),
-            textAlign: TextAlign.center,
-          ),
-        ),
+        Text(quote, textAlign: TextAlign.center, style: _mutedStyle()),
         const SizedBox(height: 22),
 
-        Text('MIN LETTERS', style: _sectionHeaderStyle()),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('MIN LETTERS', style: _hStyle()),
+        ),
         const SizedBox(height: 10),
         Row(
           children: [
-            Expanded(child: _Btn('◀', onTap: () => _bumpMin(-1), small: true)),
+            _ArrowBtn('<', onTap: () => _setMin(SessionState.minLetters - 1)),
             const SizedBox(width: 10),
             Expanded(
-              flex: 2,
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: _Colors.panel2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _Colors.border),
+                  color: _Theme.panel,
+                  borderRadius: BorderRadius.circular(_Theme.radius),
+                  border: Border.all(color: _Theme.border, width: 1),
                 ),
                 child: Center(
                   child: Text(
-                    '${SessionState.minLen}',
-                    style: _bodyStyle(),
+                    '${SessionState.minLetters}',
+                    style: const TextStyle(
+                      fontFamily: 'Times New Roman',
+                      fontSize: 18,
+                      color: _Theme.text,
+                    ),
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            Expanded(child: _Btn('▶', onTap: () => _bumpMin(1), small: true)),
+            _ArrowBtn('>', onTap: () => _setMin(SessionState.minLetters + 1)),
           ],
         ),
-
         const SizedBox(height: 18),
 
-        Text('MAX LETTERS', style: _sectionHeaderStyle()),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('MAX LETTERS', style: _hStyle()),
+        ),
         const SizedBox(height: 10),
         Row(
           children: [
-            Expanded(child: _Btn('◀', onTap: () => _bumpMax(-1), small: true)),
+            _ArrowBtn('<', onTap: () => _setMax(SessionState.maxLetters - 1)),
             const SizedBox(width: 10),
             Expanded(
-              flex: 2,
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: _Colors.panel2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _Colors.border),
+                  color: _Theme.panel,
+                  borderRadius: BorderRadius.circular(_Theme.radius),
+                  border: Border.all(color: _Theme.border, width: 1),
                 ),
                 child: Center(
                   child: Text(
-                    '${SessionState.maxLen}',
-                    style: _bodyStyle(),
+                    '${SessionState.maxLetters}',
+                    style: const TextStyle(
+                      fontFamily: 'Times New Roman',
+                      fontSize: 18,
+                      color: _Theme.text,
+                    ),
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            Expanded(child: _Btn('▶', onTap: () => _bumpMax(1), small: true)),
+            _ArrowBtn('>', onTap: () => _setMax(SessionState.maxLetters + 1)),
           ],
         ),
+        const SizedBox(height: 24),
 
-        const SizedBox(height: 22),
-
-        Text('LETTER FILTER', style: _sectionHeaderStyle()),
+        Align(alignment: Alignment.centerLeft, child: Text('LETTER FILTER', style: _hStyle())),
         const SizedBox(height: 10),
 
         Wrap(
           spacing: 10,
           runSpacing: 10,
-          children: letters.map((L) {
-            final on = SessionState.requiredLetters.contains(L);
-            return InkWell(
-              onTap: () => _toggleLetter(L),
-              borderRadius: BorderRadius.circular(12),
+          children: List.generate(26, (i) {
+            final letter = String.fromCharCode('A'.codeUnitAt(0) + i);
+            final on = SessionState.requiredLetters.contains(letter);
+
+            return GestureDetector(
+              onTap: () => _toggleLetter(letter),
               child: Container(
-                width: 46,
-                height: 46,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: on ? _Colors.panel : _Colors.panel2,
+                  color: on ? _Theme.panel2 : _Theme.panel,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: on ? _Colors.accent : _Colors.border),
+                    color: on ? _Theme.btnText : _Theme.border,
+                    width: 1.2,
+                  ),
                 ),
                 child: Center(
                   child: Text(
-                    L,
+                    letter,
                     style: TextStyle(
-                      color: on ? _Colors.accent : _Colors.text,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Times New Roman',
+                      fontSize: 18,
+                      color: on ? _Theme.btnText : _Theme.text,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ),
             );
-          }).toList(),
+          }),
         ),
 
-        const SizedBox(height: 22),
-        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
+        const SizedBox(height: 26),
+        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context), small: true),
       ],
     );
   }
 }
 
-/* -------------------------------- HISTORY SCREEN ---------------------------- */
+/* --------------------------------- History -------------------------------- */
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -731,138 +1034,97 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  static const int pageSize = 5;
-  int page = 0;
+  int _page = 0;
+  static const int _perPage = 5;
 
-  List<String> get _sortedHistory {
-    final xs = List<String>.from(SessionState.history);
-    xs.sort((a, b) => a.compareTo(b));
-    return xs;
+  List<String> get _sorted {
+    final copy = List<String>.from(SessionState.history);
+    copy.sort();
+    return copy;
+  }
+
+  int get _pageCount {
+    final total = _sorted.length;
+    if (total == 0) return 1;
+    return ((total - 1) ~/ _perPage) + 1;
+  }
+
+  List<String> _pageItems() {
+    final list = _sorted;
+    final start = _page * _perPage;
+    if (start >= list.length) return const [];
+    final end = min(start + _perPage, list.length);
+    return list.sublist(start, end);
+  }
+
+  void _openWord(String w) {
+    SessionState.lastWord = w;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => WordScreen(word: w)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final xs = _sortedHistory;
-    final totalPages = (xs.isEmpty) ? 1 : ((xs.length - 1) ~/ pageSize) + 1;
-    page = page.clamp(0, totalPages - 1);
-
-    final start = page * pageSize;
-    final end = min(start + pageSize, xs.length);
-    final slice = xs.isEmpty ? <String>[] : xs.sublist(start, end);
+    final items = _pageItems();
 
     return _Frame(
       title: 'HISTORY',
-      underlineText: _underline(),
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
       children: [
         Row(
           children: [
-            Expanded(
-              child: _Btn(
-                '◀ PREV',
-                small: true,
-                enabled: page > 0,
-                onTap: () {
-                  setState(() => page = max(0, page - 1));
-                },
-              ),
+            _ArrowBtn(
+              'PREV',
+              enabled: _page > 0,
+              onTap: () => setState(() => _page = max(0, _page - 1)),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _Btn(
-                'NEXT ▶',
-                small: true,
-                enabled: page < totalPages - 1,
-                onTap: () {
-                  setState(() => page = min(totalPages - 1, page + 1));
-                },
-              ),
+            const SizedBox(width: 10),
+            _ArrowBtn(
+              'NEXT',
+              enabled: _page < _pageCount - 1,
+              onTap: () => setState(() => _page = min(_pageCount - 1, _page + 1)),
             ),
           ],
         ),
         const SizedBox(height: 18),
 
-        if (slice.isEmpty)
-          Center(
-            child: Text(
-              '(No words yet.)',
-              style: _mutedStyle(),
-              textAlign: TextAlign.center,
-            ),
-          )
+        if (items.isEmpty)
+          Text('No history yet.', textAlign: TextAlign.center, style: _mutedStyle())
         else
-          ...slice.map((w) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _Btn(
-                w,
-                onTap: () {
-                  SessionState.lastWord = w;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => WordScreen(word: w)),
-                  );
-                },
-              ),
-            );
-          }),
+          ...items.map((w) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _Btn(w, onTap: () => _openWord(w), small: true),
+              )),
 
-        const SizedBox(height: 6),
-        _Btn(
-          'CLEAR HISTORY',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const ClearHistoryConfirmScreen()),
-            );
-          },
-        ),
+        const SizedBox(height: 16),
+
+        _Btn('CLEAR HISTORY', onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ClearHistoryConfirmScreen()),
+          );
+        }, small: true),
+
         const SizedBox(height: 14),
-        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
+        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context), small: true),
       ],
     );
   }
 }
 
-/* ------------------------ CLEAR HISTORY CONFIRM SCREEN ---------------------- */
+/* ------------------------ Clear History Confirmation ----------------------- */
 
-class ClearHistoryConfirmScreen extends StatefulWidget {
+class ClearHistoryConfirmScreen extends StatelessWidget {
   const ClearHistoryConfirmScreen({super.key});
 
-  @override
-  State<ClearHistoryConfirmScreen> createState() =>
-      _ClearHistoryConfirmScreenState();
-}
-
-class _ClearHistoryConfirmScreenState extends State<ClearHistoryConfirmScreen> {
-  late final String _face;
-  late final String _phrase;
-
-  static const _faces = [
-    '(⊙_⊙;)',
-    '(ﾟoﾟ;)',
-    '(；ﾟДﾟ)',
-    '(⚆_⚆)',
-    '(ʘᗩʘ’)',
-    '(⊙﹏⊙)',
-  ];
-
-  static const _phrases = [
-    'Erase every last lexical breadcrumb?',
-    'Delete the trail of your super-generations?',
-    'Purge the record of your wordly adventures?',
-    'Incinerate your history with one tap?',
-    'Commit vocabulary oblivion?',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _face = _pick(_faces);
-    _phrase = _pick(_phrases);
-  }
-
-  void _confirmClear() {
+  void _confirm(BuildContext context) {
     SessionState.history.clear();
     SessionState.lastWord = null;
 
@@ -870,51 +1132,50 @@ class _ClearHistoryConfirmScreenState extends State<ClearHistoryConfirmScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        final zenFaces = [
-          '(￣ー￣)',
-          '( ˘‿˘ )',
-          '(－‸ლ)',
-          '(⎵_⎵)',
-          '( ͡° ͜ʖ ͡°)',
-        ];
-        final phrases = [
-          'History dissolved into elegant silence.',
-          'Your lexicon trail has been gently unmade.',
-          'The archive evaporated—clean slate, nerd.',
-          'Past words: respectfully yeeted into the void.',
-          'A pristine absence now occupies your log.',
-        ];
+        final face = _pick(_facesZen);
+        final phrase = _pick(_historyClearedPhrases);
 
         return AlertDialog(
-          backgroundColor: _Colors.panel,
-          title: Center(
-            child: Text(
-              _pick(zenFaces),
-              style: _mutedStyle(),
-              textAlign: TextAlign.center,
-            ),
+          backgroundColor: _Theme.panel2,
+          title: Column(
+            children: [
+              Text('HISTORY CLEARED',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Times New Roman',
+                    fontSize: 18,
+                    color: _Theme.text,
+                    letterSpacing: 1,
+                  )),
+              const SizedBox(height: 8),
+              Text(_underline(),
+                  textAlign: TextAlign.center, style: _mutedStyle()),
+              const SizedBox(height: 10),
+              Text(face, textAlign: TextAlign.center, style: _mutedStyle()),
+            ],
           ),
           content: Text(
-            _pick(phrases),
-            style: _bodyStyle(),
+            phrase,
             textAlign: TextAlign.center,
+            style: _mutedStyle(),
           ),
-          actionsAlignment: MainAxisAlignment.center,
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                Navigator.pushAndRemoveUntil(
-                  context,
+                Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LaunchScreen()),
-                  (_) => false,
+                  (r) => false,
                 );
               },
-              child: Text(
-                'OKAY',
-                style: TextStyle(color: _Colors.accent, letterSpacing: 0.8),
+              child: const Text(
+                'OK',
+                style: TextStyle(
+                  fontFamily: 'Times New Roman',
+                  color: _Theme.btnText,
+                ),
               ),
-            )
+            ),
           ],
         );
       },
@@ -923,50 +1184,294 @@ class _ClearHistoryConfirmScreenState extends State<ClearHistoryConfirmScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final face = _pick(_facesPanic);
+    final phrase = _pick(_historyClearPhrases);
+
     return _Frame(
       title: 'CLEAR HISTORY',
-      underlineText: _underline(),
-      face: _face,
+      face: face,
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
       children: [
-        Center(
-          child: Text(
-            _phrase,
-            style: _mutedStyle(),
-            textAlign: TextAlign.center,
-          ),
+        Text(
+          phrase,
+          textAlign: TextAlign.center,
+          style: _mutedStyle(),
         ),
         const SizedBox(height: 22),
-        _Btn('YES, CLEAR HISTORY', onTap: _confirmClear),
-        const SizedBox(height: 14),
-        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
+
+        _Btn('YES, CLEAR HISTORY', onTap: () => _confirm(context)),
+        const SizedBox(height: 18),
+
+        _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context), small: true),
       ],
     );
   }
 }
 
-/* --------------------------- UPDATE WORD LIBRARY ---------------------------- */
+/* ----------------------------- No More Words ----------------------------- */
 
-class UpdateWordLibraryScreen extends StatefulWidget {
-  const UpdateWordLibraryScreen({super.key});
+class NoMoreWordsScreen extends StatelessWidget {
+  const NoMoreWordsScreen({super.key});
+
+  void _goLastWord(BuildContext context) {
+    final w = SessionState.lastWord;
+    if (w == null) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LaunchScreen()),
+        (r) => false,
+      );
+      return;
+    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => WordScreen(word: w)),
+    );
+  }
+
+  void _goSettings(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
+    );
+  }
+
+  void _goHistory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HistoryScreen()),
+    );
+  }
 
   @override
-  State<UpdateWordLibraryScreen> createState() => _UpdateWordLibraryScreenState();
+  Widget build(BuildContext context) {
+    final face = _pick(_facesSad);
+    final phrase = _pick(_noMorePhrases);
+
+    return _Frame(
+      title: 'NO MORE WORDS AVAILABLE',
+      face: face,
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
+      children: [
+        Text(phrase, textAlign: TextAlign.center, style: _mutedStyle()),
+        const SizedBox(height: 14),
+        Text(
+          'Try adjusting your',
+          textAlign: TextAlign.center,
+          style: _mutedStyle(),
+        ),
+        const SizedBox(height: 10),
+        _Btn('RANDOMIZER SETTINGS', onTap: () => _goSettings(context), small: true),
+        const SizedBox(height: 10),
+        Text(
+          'or clearing your',
+          textAlign: TextAlign.center,
+          style: _mutedStyle(),
+        ),
+        const SizedBox(height: 10),
+        _Btn('HISTORY', onTap: () => _goHistory(context), small: true),
+        const SizedBox(height: 22),
+
+        _Btn('RETURN TO LAST WORD', onTap: () => _goLastWord(context)),
+      ],
+    );
+  }
 }
 
-class _UpdateWordLibraryScreenState extends State<UpdateWordLibraryScreen> {
-  bool _started = false;
+/* ----------------------------- Word Not Found ---------------------------- */
 
-  Future<void> _startUpdate() async {
-    if (_started) return;
-    setState(() => _started = true);
+class WordNotFoundScreen extends StatefulWidget {
+  final String typed;
+
+  const WordNotFoundScreen({super.key, required this.typed});
+
+  @override
+  State<WordNotFoundScreen> createState() => _WordNotFoundScreenState();
+}
+
+class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
+  int _page = 0;
+  static const int _perPage = 5;
+
+  List<String> get _suggestions =>
+      LibraryService.instance.suggest(widget.typed, limit: 40);
+
+  int get _pageCount {
+    final total = _suggestions.length;
+    if (total == 0) return 1;
+    return ((total - 1) ~/ _perPage) + 1;
+  }
+
+  List<String> _pageItems() {
+    final list = _suggestions;
+    final start = _page * _perPage;
+    if (start >= list.length) return const [];
+    final end = min(start + _perPage, list.length);
+    return list.sublist(start, end);
+  }
+
+  Future<void> _search(BuildContext context) async {
+    final typed = await _promptForWord(context);
+    if (typed == null) return;
+
+    final upper = typed.toUpperCase();
+    final entry = LibraryService.instance.lookup(upper);
+
+    if (entry != null) {
+      SessionState.lastWord = upper;
+      if (!SessionState.history.contains(upper)) SessionState.history.add(upper);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => WordScreen(word: upper)),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)),
+      );
+    }
+  }
+
+  void _openSuggestion(String w) {
+    SessionState.lastWord = w;
+    if (!SessionState.history.contains(w)) SessionState.history.add(w);
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => WordScreen(word: w)),
+    );
+  }
+
+  void _newRandomWord() {
+    final w = _generateNextWord();
+    if (w == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const NoMoreWordsScreen()),
+      );
+      return;
+    }
+
+    SessionState.lastWord = w;
+    if (!SessionState.history.contains(w)) SessionState.history.add(w);
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => WordScreen(word: w)),
+    );
+  }
+
+  void _goSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
+    );
+  }
+
+  void _goHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HistoryScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _pageItems();
+
+    return _Frame(
+      title: 'WORD NOT FOUND',
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
+      children: [
+        Text('Sorry we didn’t find', textAlign: TextAlign.center, style: _mutedStyle()),
+        const SizedBox(height: 10),
+        Text('"${widget.typed}"', textAlign: TextAlign.center, style: _bodyStyle()),
+        const SizedBox(height: 18),
+
+        if (_suggestions.isNotEmpty) ...[
+          Text('Did you mean', textAlign: TextAlign.center, style: _mutedStyle()),
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              _ArrowBtn(
+                'PREV',
+                enabled: _page > 0,
+                onTap: () => setState(() => _page = max(0, _page - 1)),
+              ),
+              const SizedBox(width: 10),
+              _ArrowBtn(
+                'NEXT',
+                enabled: _page < _pageCount - 1,
+                onTap: () => setState(() => _page = min(_pageCount - 1, _page + 1)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          ...items.map((w) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _Btn(w, onTap: () => _openSuggestion(w), small: true),
+              )),
+        ],
+
+        const SizedBox(height: 18),
+        _Btn('RETURN TO SEARCH', onTap: () => _search(context)),
+        const SizedBox(height: 14),
+        _Btn('NEW RANDOM WORD', onTap: _newRandomWord),
+        const SizedBox(height: 14),
+        _Btn('RANDOMIZER SETTINGS', onTap: _goSettings),
+        const SizedBox(height: 14),
+        _Btn('HISTORY', onTap: _goHistory),
+      ],
+    );
+  }
+}
+
+/* ---------------------------- Update Library Flow ------------------------- */
+
+class UpdateInProgressScreen extends StatefulWidget {
+  const UpdateInProgressScreen({super.key});
+
+  @override
+  State<UpdateInProgressScreen> createState() => _UpdateInProgressScreenState();
+}
+
+class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    final tease = _pick(_updateTeases);
+    // show a frame immediately
+    await Future.delayed(const Duration(milliseconds: 250));
 
     final res = await UpdateService.instance.runUpdate();
 
     if (!mounted) return;
+
     if (res.success) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => UpdateCompleteScreen(message: res.message)),
+        MaterialPageRoute(builder: (_) => const UpdateCompleteScreen()),
       );
     } else {
       Navigator.pushReplacement(
@@ -974,31 +1479,38 @@ class _UpdateWordLibraryScreenState extends State<UpdateWordLibraryScreen> {
         MaterialPageRoute(builder: (_) => UpdateFailedScreen(message: res.message)),
       );
     }
+
+    // tease variable just ensures we "use" randomness each run
+    // (kept minimal; no extra UI state required)
+    if (tease.isEmpty) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final tease = _pick(_updateTeases);
+
+    // NO close app button on this screen (per requirement)
     return _Frame(
-      title: 'UPDATE WORD LIBRARY',
-      underlineText: _underline(),
-      showCloseApp: false,
+      title: 'UPDATING WORD LIBRARY',
+      face: _pick(_facesInquisitive),
+      cornerCloseApp: null,
       children: [
-        const SizedBox(height: 6),
         Text(
-          '[This is how your app’s word library is updated. It will replace outdated words and definitions with the latest versions, and add any missing words. Nothing else.]',
-          style: _mutedStyle(),
+          tease,
           textAlign: TextAlign.center,
+          style: _mutedStyle(),
         ),
-        const SizedBox(height: 20),
-        _Btn(
-          _started ? 'UPDATING…' : 'BEGIN UPDATE',
-          onTap: _started ? null : _startUpdate,
-          enabled: !_started,
+        const SizedBox(height: 18),
+        const LinearProgressIndicator(
+          minHeight: 6,
+          backgroundColor: _Theme.border,
+          color: _Theme.btnText,
         ),
-        const SizedBox(height: 14),
-        _Btn(
-          'BACK TO LAST SCREEN',
-          onTap: () => Navigator.pop(context),
+        const SizedBox(height: 18),
+        Text(
+          'Downloading & installing words…',
+          textAlign: TextAlign.center,
+          style: _mutedStyle(),
         ),
       ],
     );
@@ -1006,32 +1518,32 @@ class _UpdateWordLibraryScreenState extends State<UpdateWordLibraryScreen> {
 }
 
 class UpdateCompleteScreen extends StatelessWidget {
-  final String message;
-  const UpdateCompleteScreen({super.key, required this.message});
+  const UpdateCompleteScreen({super.key});
+
+  void _ok(BuildContext context) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LaunchScreen()),
+      (r) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final face = _pick(_facesHappy);
+
     return _Frame(
       title: 'UPDATE COMPLETE',
-      underlineText: _underline(),
-      showCloseApp: false,
+      face: face,
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
       children: [
-        Text(
-          message,
-          style: _bodyStyle(),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 18),
-        _Btn(
-          'OKAY',
-          onTap: () {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const LaunchScreen()),
-              (_) => false,
-            );
-          },
-        ),
+        Text('Update successful.', textAlign: TextAlign.center, style: _mutedStyle()),
+        const SizedBox(height: 22),
+        _Btn('OKAY', onTap: () => _ok(context)),
       ],
     );
   }
@@ -1041,404 +1553,71 @@ class UpdateFailedScreen extends StatelessWidget {
   final String message;
   const UpdateFailedScreen({super.key, required this.message});
 
+  void _ok(BuildContext context) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LaunchScreen()),
+      (r) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final phrases = [
-      'The library update tripped over its own shoelaces and faceplanted gracefully.',
-      'A tiny network gremlin stole your update and sprinted into the dark.',
-      'The update attempted transcendence and instead achieved mild confusion.',
-      'Your word library sighed, shrugged, and refused to evolve right now.',
-      'The download got lost in the void between “now” and “almost.”',
-    ];
+    final face = _pick(_facesSad);
+    final phrase = 'The update failed. The lexicon remains intact.';
 
     return _Frame(
       title: 'UPDATE DIDN’T WORK',
-      underlineText: _underline(),
-      showCloseApp: false,
+      face: face,
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CloseAppScreen()),
+        );
+      }),
       children: [
-        Text(
-          _pick(phrases),
-          style: _mutedStyle(),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          message,
-          style: _bodyStyle(),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 18),
-        _Btn(
-          'OKAY',
-          onTap: () {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const LaunchScreen()),
-              (_) => false,
-            );
-          },
-        ),
+        Text(phrase, textAlign: TextAlign.center, style: _mutedStyle()),
+        const SizedBox(height: 10),
+        Text(message, textAlign: TextAlign.center, style: _mutedStyle()),
+        const SizedBox(height: 22),
+        _Btn('OKAY', onTap: () => _ok(context)),
       ],
     );
   }
 }
 
-/* ----------------------------- NO MORE WORDS SCREEN ------------------------- */
-
-class NoMoreWordsScreen extends StatelessWidget {
-  const NoMoreWordsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final faces = [
-      '(╥_╥)',
-      '(ಥ_ಥ)',
-      '(；_；)',
-      '(╯︵╰,)',
-      '(；ω；)',
-      '(¬_¬ )',
-    ];
-    final phrases = [
-      'No more words remain within your current constraints.',
-      'The generator rummaged the archive and found… nothing.',
-      'All eligible words have been exhausted (for now).',
-      'Your settings and history have narrowed the universe to zero.',
-      'The pool is empty, yet your curiosity persists.',
-    ];
-
-    return _Frame(
-      title: 'NO MORE WORDS AVAILABLE',
-      underlineText: _underline(),
-      face: _pick(faces),
-      children: [
-        Center(
-          child: Text(
-            _pick(phrases),
-            style: _mutedStyle(),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          'Try adjusting your ',
-          style: _mutedStyle(),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _InlineLink(
-                'Settings',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()),
-                  );
-                },
-              ),
-              Text(
-                ' or clearing your ',
-                style: _mutedStyle(),
-              ),
-              _InlineLink(
-                'History',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const HistoryScreen()),
-                  );
-                },
-              ),
-              Text(
-                ' to generate more words!',
-                style: _mutedStyle(),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/* --------------------------- WORD NOT FOUND SCREEN -------------------------- */
-
-class WordNotFoundScreen extends StatefulWidget {
-  final String typed;
-  const WordNotFoundScreen({super.key, required this.typed});
-
-  @override
-  State<WordNotFoundScreen> createState() => _WordNotFoundScreenState();
-}
-
-class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
-  static const int pageSize = 5;
-  int page = 0;
-
-  List<String> get _suggestions {
-    return LibraryService.instance.suggest(widget.typed, limit: 25);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final sug = _suggestions;
-    final totalPages = (sug.isEmpty) ? 1 : ((sug.length - 1) ~/ pageSize) + 1;
-    page = page.clamp(0, totalPages - 1);
-
-    final start = page * pageSize;
-    final end = min(start + pageSize, sug.length);
-    final slice = sug.isEmpty ? <String>[] : sug.sublist(start, end);
-
-    return _Frame(
-      title: 'WORD NOT FOUND',
-      underlineText: _underline(),
-      children: [
-        Center(
-          child: Text(
-            'Sorry we didn’t find\n${widget.typed}',
-            style: _bodyStyle(),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (slice.isNotEmpty) ...[
-          Center(
-            child: Text(
-              'Did you mean:',
-              style: _sectionHeaderStyle(),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _Btn(
-                  '◀ PREV',
-                  small: true,
-                  enabled: page > 0,
-                  onTap: () => setState(() => page = max(0, page - 1)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _Btn(
-                  'NEXT ▶',
-                  small: true,
-                  enabled: page < totalPages - 1,
-                  onTap: () => setState(() => page = min(totalPages - 1, page + 1)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...slice.map((w) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _Btn(
-                  w,
-                  onTap: () {
-                    SessionState.lastWord = w;
-                    if (!SessionState.history.contains(w)) SessionState.history.add(w);
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => WordScreen(word: w)),
-                    );
-                  },
-                ),
-              )),
-          const SizedBox(height: 10),
-        ],
-        _Btn(
-          'RETURN TO SEARCH',
-          onTap: () async {
-            final typed = await _promptForWord(context);
-            if (typed == null) return;
-            final up = typed.trim().toUpperCase();
-            if (up.isEmpty) return;
-            final entry = LibraryService.instance.lookup(up);
-            if (entry != null) {
-              SessionState.lastWord = entry.word;
-              if (!SessionState.history.contains(entry.word)) {
-                SessionState.history.add(entry.word);
-              }
-              Navigator.pushReplacement(
-                  context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
-            } else {
-              Navigator.pushReplacement(
-                  context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: up)));
-            }
-          },
-        ),
-        const SizedBox(height: 14),
-        _Btn(
-          'NEW RANDOM WORD',
-          onTap: () {
-            final w = _pickRandomAllowedWord();
-            if (w == null) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const NoMoreWordsScreen()),
-              );
-              return;
-            }
-            SessionState.lastWord = w;
-            if (!SessionState.history.contains(w)) SessionState.history.add(w);
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => WordScreen(word: w)),
-            );
-          },
-        ),
-        const SizedBox(height: 14),
-        _Btn(
-          'RANDOMIZER SETTINGS',
-          onTap: () {
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const RandomizerSettingsScreen()));
-          },
-        ),
-        const SizedBox(height: 14),
-        _Btn(
-          'HISTORY',
-          onTap: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
-          },
-        ),
-      ],
-    );
-  }
-}
-
-/* ------------------------------ CLOSE APP SCREEN ---------------------------- */
+/* ------------------------------ Close App -------------------------------- */
 
 class CloseAppScreen extends StatelessWidget {
   const CloseAppScreen({super.key});
 
+  void _closeNow(BuildContext context) {
+    // Clear history upon exiting
+    SessionState.history.clear();
+    SessionState.lastWord = null;
+
+    SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final faces = [
-      '(；︵；)',
-      '(╯︵╰,)',
-      '(；_；)',
-      '(ಥ﹏ಥ)',
-      '(；д；)',
-      '(；ω；)',
-    ];
-
-    final phrases = [
-      'Until next time—may your vocabulary expand in splendid silence.',
-      'We will miss you, warmly, and with unreasonable linguistic intensity.',
-      'May your day be coherent, your thoughts articulate, and your words abundant.',
-      'Depart gently; your history will dissolve the moment you close the app.',
-      'Farewell, noble nerd—return when the lexicon calls.',
-    ];
+    final face = _pick(_facesZen);
+    final goodbye = 'May your next word arrive at the perfect moment.';
 
     return _Frame(
       title: 'CLOSE APP',
-      underlineText: _underline(),
-      face: _pick(faces),
+      face: face,
+      cornerCloseApp: _CornerBtn('CLOSE APP', onTap: () => _closeNow(context)),
       children: [
-        Center(
-          child: Text(
-            _pick(phrases),
-            style: _mutedStyle(),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const SizedBox(height: 18),
-        Center(
-          child: Text(
-            'Warning: your word history will be cleared upon exiting the app.',
-            style: _mutedStyle(),
-            textAlign: TextAlign.center,
-          ),
+        Text(goodbye, textAlign: TextAlign.center, style: _mutedStyle()),
+        const SizedBox(height: 14),
+        Text(
+          'Your word history will be cleared when you close the app.',
+          textAlign: TextAlign.center,
+          style: _mutedStyle(),
         ),
         const SizedBox(height: 22),
-        _Btn(
-          'CLOSE APP',
-          onTap: () {
-            SessionState.history.clear();
-            SessionState.lastWord = null;
-            SystemNavigator.pop();
-          },
-        ),
-        const SizedBox(height: 14),
         _Btn('BACK TO LAST SCREEN', onTap: () => Navigator.pop(context)),
       ],
-      onCloseApp: () {
-        // We're already on Close App screen; do nothing.
-      },
     );
   }
-}
-
-/* -------------------------- RANDOM PICK / FILTER LOGIC ---------------------- */
-
-bool _passesRandomizer(String w) {
-  final len = w.length;
-  if (len < SessionState.minLen || len > SessionState.maxLen) return false;
-
-  if (SessionState.requiredLetters.isNotEmpty) {
-    for (final L in SessionState.requiredLetters) {
-      if (!w.contains(L)) return false;
-    }
-  }
-  return true;
-}
-
-String? _pickRandomAllowedWord() {
-  final all = LibraryService.instance.allWords;
-
-  final candidates = <String>[];
-  for (final w in all) {
-    if (_passesRandomizer(w) && !SessionState.history.contains(w)) {
-      candidates.add(w);
-    }
-  }
-  if (candidates.isEmpty) return null;
-  return candidates[_rng.nextInt(candidates.length)];
-}
-
-/* ----------------------------- SEARCH PROMPT UI ----------------------------- */
-
-Future<String?> _promptForWord(BuildContext context) async {
-  final controller = TextEditingController();
-
-  return showDialog<String?>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: _Colors.panel,
-      title: const Text(
-        'SEARCH FOR A WORD',
-        style: TextStyle(color: _Colors.text),
-      ),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        style: const TextStyle(color: _Colors.text),
-        decoration: const InputDecoration(
-          hintText: 'Type a word',
-          hintStyle: TextStyle(color: _Colors.muted),
-        ),
-        textInputAction: TextInputAction.search,
-        onSubmitted: (v) => Navigator.pop(ctx, v),
-      ),
-      actionsAlignment: MainAxisAlignment.center,
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, null),
-          child: Text('CANCEL', style: TextStyle(color: _Colors.accent)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, controller.text),
-          child: Text('SEARCH', style: TextStyle(color: _Colors.accent)),
-        ),
-      ],
-    ),
-  );
 }
