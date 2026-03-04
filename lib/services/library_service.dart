@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math';
-
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../models/word_entry.dart';
@@ -9,11 +8,11 @@ class LibraryService {
   LibraryService._();
   static final LibraryService instance = LibraryService._();
 
-  static const String _assetPath = 'assets/library.jsonl';
+  // ✅ OPTION A: JSON array file (assets/library.json)
+  static const String _assetPath = 'assets/library.json';
 
-  final Map<String, WordEntry> _byWord = {};
-  List<String> _allWords = const [];
-
+  final Map<String, WordEntry> _byWord = <String, WordEntry>{};
+  List<String> _allWords = const <String>[];
   String _lastUpdated = 'Bundled';
 
   /// Call once at startup.
@@ -24,6 +23,7 @@ class LibraryService {
   }
 
   /// Used by UpdateService after downloading a new library.
+  /// (Supports JSON array OR JSONL string input.)
   void loadFromRemoteString(String raw) {
     _loadFromString(raw);
     _lastUpdated = _todayIso();
@@ -37,7 +37,7 @@ class LibraryService {
   List<String> get allWords => _allWords;
 
   Future<String> lastUpdatedLabel() async {
-    // (lightweight: in-memory label; no extra deps)
+    // Lightweight: in-memory label; no extra deps
     return _lastUpdated;
   }
 
@@ -45,10 +45,10 @@ class LibraryService {
   /// Simple + fast heuristic (no heavy algorithms).
   List<String> suggest(String typed, {int limit = 25}) {
     final t = typed.trim().toUpperCase();
-    if (t.isEmpty) return const [];
-    final first = t[0];
+    if (t.isEmpty) return const <String>[];
 
-    final List<String> hits = [];
+    final first = t[0];
+    final List<String> hits = <String>[];
 
     // Prefer: same first letter + contains typed substring (or prefix)
     for (final w in _allWords) {
@@ -61,6 +61,7 @@ class LibraryService {
           _commonPrefixLen(w, t) >= min(3, t.length)) {
         hits.add(w);
       }
+
       if (hits.length >= limit) break;
     }
 
@@ -68,9 +69,11 @@ class LibraryService {
     if (hits.length < limit) {
       for (final w in _allWords) {
         if (hits.contains(w)) continue;
+
         if (w.contains(t) || w.startsWith(t) || _commonPrefixLen(w, t) >= 2) {
           hits.add(w);
         }
+
         if (hits.length >= limit) break;
       }
     }
@@ -82,21 +85,14 @@ class LibraryService {
 
   void _loadFromString(String raw) {
     final trimmed = raw.trimLeft();
-
-    final Map<String, WordEntry> map = {};
-    final List<String> words = [];
+    final Map<String, WordEntry> map = <String, WordEntry>{};
 
     if (trimmed.startsWith('[')) {
       // JSON array
       final decoded = jsonDecode(raw);
       if (decoded is List) {
         for (final item in decoded) {
-          if (item is Map<String, dynamic>) {
-            final entry = WordEntry.fromJson(item);
-            final key = entry.word.toUpperCase();
-            if (key.isEmpty) continue;
-            map[key] = entry;
-          } else if (item is Map) {
+          if (item is Map) {
             final entry = WordEntry.fromJson(item.cast<String, dynamic>());
             final key = entry.word.toUpperCase();
             if (key.isEmpty) continue;
@@ -110,13 +106,9 @@ class LibraryService {
       for (final line in lines) {
         final l = line.trim();
         if (l.isEmpty) continue;
+
         final decoded = jsonDecode(l);
-        if (decoded is Map<String, dynamic>) {
-          final entry = WordEntry.fromJson(decoded);
-          final key = entry.word.toUpperCase();
-          if (key.isEmpty) continue;
-          map[key] = entry;
-        } else if (decoded is Map) {
+        if (decoded is Map) {
           final entry = WordEntry.fromJson(decoded.cast<String, dynamic>());
           final key = entry.word.toUpperCase();
           if (key.isEmpty) continue;
@@ -125,13 +117,13 @@ class LibraryService {
       }
     }
 
-    words.addAll(map.keys);
-    words.sort(); // stable alphabetical list
+    final words = map.keys.toList()..sort();
 
     _byWord
       ..clear()
       ..addAll(map);
-    _allWords = words;
+
+    _allWords = List<String>.unmodifiable(words);
   }
 
   int _commonPrefixLen(String a, String b) {
