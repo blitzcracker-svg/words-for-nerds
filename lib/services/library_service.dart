@@ -31,7 +31,10 @@ class LibraryService {
     if (await localFile.exists()) {
       try {
         final raw = await localFile.readAsString();
-        final parsed = _parseAndValidateRaw(raw);
+
+        // Boot-time validation: keep it lenient so the app can't be bricked
+        // by older files (requires word + definition only).
+        final parsed = _parseAndValidateRaw(raw, strict: false);
         _applyParsed(parsed);
 
         final meta = await _readMetaDate();
@@ -49,18 +52,21 @@ class LibraryService {
       }
     }
 
+    // Bundled asset load (lenient).
     final raw = await rootBundle.loadString(_assetPath);
-    final parsed = _parseAndValidateRaw(raw);
+    final parsed = _parseAndValidateRaw(raw, strict: false);
     _applyParsed(parsed);
     _lastUpdated = 'Bundled';
   }
 
   /// Strict + rollback-safe update install.
+  /// STRICT RULES (update file only):
+  /// - word, definition, phonetic, etymology, example must all be non-empty.
   Future<void> applyUpdatedLibrary(String raw) async {
     await _ensureLocalPaths();
 
     // Parse + strict validation first (no in-memory mutation yet).
-    final parsed = _parseAndValidateRaw(raw);
+    final parsed = _parseAndValidateRaw(raw, strict: true);
 
     final targetPath = _localLibraryPath!;
     final tmpPath = '$targetPath.tmp';
@@ -185,7 +191,7 @@ class LibraryService {
     }
   }
 
-  _ParsedLibrary _parseAndValidateRaw(String raw) {
+  _ParsedLibrary _parseAndValidateRaw(String raw, {required bool strict}) {
     final trimmed = raw.trimLeft();
 
     final Map<String, WordEntry> map = <String, WordEntry>{};
@@ -201,7 +207,7 @@ class LibraryService {
         total++;
 
         final entry = WordEntry.fromJson(item.cast<String, dynamic>());
-        if (_isEntryValid(entry)) {
+        if (_isEntryValid(entry, strict: strict)) {
           valid++;
           map[entry.word.toUpperCase()] = entry;
         }
@@ -217,7 +223,7 @@ class LibraryService {
         if (decoded is! Map) continue;
 
         final entry = WordEntry.fromJson(decoded.cast<String, dynamic>());
-        if (_isEntryValid(entry)) {
+        if (_isEntryValid(entry, strict: strict)) {
           valid++;
           map[entry.word.toUpperCase()] = entry;
         }
@@ -228,20 +234,35 @@ class LibraryService {
       throw const FormatException('Library contained no valid entries.');
     }
 
-    // Require most entries to be valid (prevents replacing with junk).
+    // If we're strict (updates), demand near-total validity for medium/large files.
+    // This prevents replacing your good library with a partial/broken one.
     final ratio = valid / max(1, total);
-    if (total >= 20 && ratio < 0.95) {
-      throw FormatException('Library validation failed (valid ratio ${(ratio * 100).toStringAsFixed(1)}%).');
+    if (strict && total >= 20 && ratio < 0.95) {
+      throw FormatException(
+        'Library validation failed (valid ratio ${(ratio * 100).toStringAsFixed(1)}%). '
+        'Updates require word+definition+phonetic+etymology+example for each entry.',
+      );
     }
 
     final words = map.keys.toList()..sort();
     return _ParsedLibrary(map, List<String>.unmodifiable(words));
   }
 
-  bool _isEntryValid(WordEntry e) {
-    // Strict but practical: require WORD + DEFINITION.
-    if (e.word.trim().isEmpty) return false;
-    if (e.definition.trim().isEmpty) return false;
+  bool _isEntryValid(WordEntry e, {required bool strict}) {
+    final w = e.word.trim();
+    final d = e.definition.trim();
+
+    if (w.isEmpty) return false;
+    if (d.isEmpty) return false;
+
+    if (!strict) return true;
+
+    // STRICT UPDATE REQUIREMENTS:
+    // All these must be non-empty in the update file.
+    if (e.phonetic.trim().isEmpty) return false;
+    if (e.etymology.trim().isEmpty) return false;
+    if (e.example.trim().isEmpty) return false;
+
     return true;
   }
 
