@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 
 import 'library_service.dart';
@@ -6,73 +6,85 @@ import 'library_service.dart';
 class UpdateResult {
   final bool success;
   final String message;
-  const UpdateResult(this.success, this.message);
+  const UpdateResult._(this.success, this.message);
+
+  factory UpdateResult.ok([String message = 'Update complete.']) =>
+      UpdateResult._(true, message);
+
+  factory UpdateResult.fail([String message = 'Update failed.']) =>
+      UpdateResult._(false, message);
 }
 
 class UpdateService {
-  UpdateService._();
   static final UpdateService instance = UpdateService._();
+  UpdateService._();
 
-  // ✅ Pulls the latest library directly from your repo.
-  // If you update assets/library.json in GitHub, this fetches it.
-  static const String libraryUrl =
+  // Primary: GitHub Release asset (latest)
+  static const String _releaseLatestUrl =
+      'https://github.com/blitzcracker-svg/words-for-nerds/releases/latest/download/library.json';
+
+  // Fallback (still works if you choose to keep the repo asset updated too)
+  static const String _fallbackRawUrl =
       'https://raw.githubusercontent.com/blitzcracker-svg/words-for-nerds/main/assets/library.json';
 
-  // Hard safety cap so updates can't balloon unexpectedly.
-  static const int _maxBytes = 10 * 1024 * 1024; // 10 MB
+  // Safety limit so a bad download can’t explode memory/storage.
+  static const int _maxBytes = 50 * 1024 * 1024; // 50 MB
 
   Future<UpdateResult> runUpdate() async {
     try {
-      final uri = Uri.parse(libraryUrl);
+      final raw = await _downloadText(_releaseLatestUrl).catchError((_) async {
+        // If the Release asset is missing, fall back to the raw file.
+        return await _downloadText(_fallbackRawUrl);
+      });
 
-      // Basic network safety checks
-      if (uri.scheme != 'https') {
-        return const UpdateResult(false, 'Update blocked: unsafe URL.');
+      // Very light validation before we write anything.
+      final t = raw.trimLeft();
+      if (t.isEmpty) {
+        return UpdateResult.fail('Downloaded file was empty.');
       }
-      if (uri.host != 'raw.githubusercontent.com') {
-        return const UpdateResult(false, 'Update blocked: untrusted host.');
+      if (!(t.startsWith('[') || t.startsWith('{'))) {
+        return UpdateResult.fail('Downloaded file did not look like JSON.');
       }
 
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+      await LibraryService.instance.applyUpdatedLibrary(raw);
+      return UpdateResult.ok('Update successful.');
+    } catch (_) {
+      return UpdateResult.fail('Update failed (offline or unreachable).');
+    }
+  }
 
+  Future<String> _downloadText(String url) async {
+    final uri = Uri.parse(url);
+
+    // Only allow https.
+    if (uri.scheme != 'https') {
+      throw StateError('Refusing non-https URL');
+    }
+
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 10);
+
+    try {
       final req = await client.getUrl(uri);
-      req.headers.set(HttpHeaders.acceptHeader, 'application/json');
-      req.headers.set(HttpHeaders.userAgentHeader, 'words-for-nerds');
+      req.headers.set('User-Agent', 'words-for-nerds');
 
-      final resp = await req.close();
+      final res = await req.close().timeout(const Duration(seconds: 20));
 
-      if (resp.statusCode != 200) {
-        return UpdateResult(false, 'Update failed: HTTP ${resp.statusCode}.');
+      if (res.statusCode != 200) {
+        throw HttpException('HTTP ${res.statusCode}');
       }
 
-      // Read response with a size limit
-      final chunks = <int>[];
-      await for (final chunk in resp) {
-        chunks.addAll(chunk);
-        if (chunks.length > _maxBytes) {
-          return const UpdateResult(false, 'Update blocked: file too large.');
+      final bytes = <int>[];
+      await for (final chunk in res) {
+        bytes.addAll(chunk);
+        if (bytes.length > _maxBytes) {
+          throw StateError('Download too large');
         }
       }
 
-      final raw = utf8.decode(chunks);
-
-      // Validate it's a JSON array and non-empty
-      final trimmed = raw.trimLeft();
-      if (!trimmed.startsWith('[')) {
-        return const UpdateResult(false, 'Update failed: invalid format.');
-      }
-      final decoded = jsonDecode(raw);
-      if (decoded is! List || decoded.isEmpty) {
-        return const UpdateResult(false, 'Update failed: empty library.');
-      }
-
-      // Apply + persist (offline after this)
-      await LibraryService.instance.applyUpdatedLibrary(raw);
-
+      return utf8.decode(bytes, allowMalformed: false);
+    } finally {
       client.close(force: true);
-      return const UpdateResult(true, 'Update successful.');
-    } catch (_) {
-      return const UpdateResult(false, 'Update failed.');
     }
   }
 }
