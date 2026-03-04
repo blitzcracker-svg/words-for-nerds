@@ -42,19 +42,23 @@ class UpdateService {
         raw = await _downloadText(_fallbackRawUrl);
       }
 
-      // Very light validation before we write anything.
+      // Light validation before we attempt to install.
       final t = raw.trimLeft();
-      if (t.isEmpty) {
-        return UpdateResult.fail('Downloaded file was empty.');
-      }
+      if (t.isEmpty) return UpdateResult.fail('Downloaded file was empty.');
       if (!(t.startsWith('[') || t.startsWith('{'))) {
         return UpdateResult.fail('Downloaded file did not look like JSON.');
       }
 
+      // This call is now “bulletproof” (atomic + strict validation).
       await LibraryService.instance.applyUpdatedLibrary(raw);
+
       return UpdateResult.ok('Update successful.');
+    } on SocketException {
+      return UpdateResult.fail('Update failed (no network).');
+    } on TimeoutException {
+      return UpdateResult.fail('Update failed (timeout).');
     } catch (_) {
-      return UpdateResult.fail('Update failed (offline or unreachable).');
+      return UpdateResult.fail('Update failed.');
     }
   }
 
@@ -71,14 +75,11 @@ class UpdateService {
 
     try {
       final req = await client.getUrl(uri);
-
-      // GitHub releases/latest redirects — be explicit.
       req.followRedirects = true;
-      req.maxRedirects = 5;
-
+      req.maxRedirects = 8;
       req.headers.set('User-Agent', 'words-for-nerds');
 
-      final res = await req.close().timeout(const Duration(seconds: 20));
+      final res = await req.close().timeout(const Duration(seconds: 25));
 
       if (res.statusCode != 200) {
         throw HttpException('HTTP ${res.statusCode}');
@@ -104,3 +105,5 @@ class UpdateService {
     }
   }
 }
+
+class TimeoutException implements Exception {}
