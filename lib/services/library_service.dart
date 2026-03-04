@@ -27,20 +27,33 @@ class LibraryService {
   Future<void> initFromAsset() async {
     await _ensureLocalPaths();
 
-    // Prefer saved updated library if it exists.
+    // Prefer saved updated library if it exists, but fall back safely if corrupt.
     final localFile = File(_localLibraryPath!);
     if (await localFile.exists()) {
-      final raw = await localFile.readAsString();
-      _loadFromString(raw);
+      try {
+        final raw = await localFile.readAsString();
+        final parsed = _parseRaw(raw);
+        _applyParsed(parsed);
 
-      final meta = await _readMetaDate();
-      _lastUpdated = meta ?? 'Updated';
-      return;
+        final meta = await _readMetaDate();
+        _lastUpdated = meta ?? 'Updated';
+        return;
+      } catch (_) {
+        // If local library is corrupt/empty, delete it and fall back to asset.
+        try {
+          await localFile.delete();
+        } catch (_) {}
+        try {
+          final metaFile = File(_localMetaPath!);
+          if (await metaFile.exists()) await metaFile.delete();
+        } catch (_) {}
+      }
     }
 
     // Otherwise use bundled asset.
     final raw = await rootBundle.loadString(_assetPath);
-    _loadFromString(raw);
+    final parsed = _parseRaw(raw);
+    _applyParsed(parsed);
     _lastUpdated = 'Bundled';
   }
 
@@ -48,23 +61,71 @@ class LibraryService {
   Future<void> applyUpdatedLibrary(String raw) async {
     await _ensureLocalPaths();
 
-    // Parse first (validation) before writing anything.
-    _loadFromString(raw);
+    // Parse first (validation) WITHOUT mutating in-memory state yet.
+    final parsed = _parseRaw(raw);
 
-    // Atomic write: write temp then rename.
-    final tmpPath = '${_localLibraryPath!}.tmp';
+    // Write temp.
+    final targetPath = _localLibraryPath!;
+    final tmpPath = '$targetPath.tmp';
+    final bakPath = '$targetPath.bak';
+
     final tmpFile = File(tmpPath);
+    final targetFile = File(targetPath);
+    final bakFile = File(bakPath);
+
     await tmpFile.writeAsString(raw, flush: true);
 
-    final targetFile = File(_localLibraryPath!);
-    if (await targetFile.exists()) {
-      await targetFile.delete();
+    // Ensure stale backup is gone.
+    if (await bakFile.exists()) {
+      await bakFile.delete();
     }
-    await tmpFile.rename(_localLibraryPath!);
 
-    // Save metadata
-    _lastUpdated = _todayIso();
-    await File(_localMetaPath!).writeAsString(jsonEncode({'lastUpdated': _lastUpdated}), flush: true);
+    // Swap files with rollback protection.
+    try {
+      if (await targetFile.exists()) {
+        await targetFile.rename(bakPath);
+      }
+
+      await tmpFile.rename(targetPath);
+
+      // Swap in-memory only AFTER the file swap succeeds.
+      _applyParsed(parsed);
+
+      // Save metadata last.
+      _lastUpdated = _todayIso();
+      await File(_localMetaPath!)
+          .writeAsString(jsonEncode({'lastUpdated': _lastUpdated}), flush: true);
+
+      // Cleanup backup.
+      if (await bakFile.exists()) {
+        await bakFile.delete();
+      }
+    } catch (e) {
+      // Roll back file state if possible.
+      try {
+        if (await targetFile.exists()) {
+          await targetFile.delete();
+        }
+      } catch (_) {}
+
+      try {
+        if (await bakFile.exists()) {
+          await bakFile.rename(targetPath);
+        }
+      } catch (_) {}
+
+      // Ensure temp is gone.
+      try {
+        if (await tmpFile.exists()) await tmpFile.delete();
+      } catch (_) {}
+
+      rethrow;
+    } finally {
+      // Extra temp cleanup (in case rename didn't happen).
+      try {
+        if (await tmpFile.exists()) await tmpFile.delete();
+      } catch (_) {}
+    }
   }
 
   WordEntry? lookup(String word) {
@@ -75,7 +136,6 @@ class LibraryService {
   List<String> get allWords => _allWords;
 
   Future<String> lastUpdatedLabel() async {
-    // In-memory is enough most of the time, but meta keeps it across restarts.
     if (_lastUpdated.isNotEmpty) return _lastUpdated;
     await _ensureLocalPaths();
     return (await _readMetaDate()) ?? 'Bundled';
@@ -142,7 +202,7 @@ class LibraryService {
     }
   }
 
-  void _loadFromString(String raw) {
+  _ParsedLibrary _parseRaw(String raw) {
     final trimmed = raw.trimLeft();
 
     final Map<String, WordEntry> map = <String, WordEntry>{};
@@ -150,14 +210,15 @@ class LibraryService {
     if (trimmed.startsWith('[')) {
       // JSON array
       final decoded = jsonDecode(raw);
-      if (decoded is List) {
-        for (final item in decoded) {
-          if (item is Map) {
-            final entry = WordEntry.fromJson(item.cast<String, dynamic>());
-            final key = entry.word.toUpperCase();
-            if (key.isEmpty) continue;
-            map[key] = entry;
-          }
+      if (decoded is! List) {
+        throw const FormatException('Expected JSON array');
+      }
+      for (final item in decoded) {
+        if (item is Map) {
+          final entry = WordEntry.fromJson(item.cast<String, dynamic>());
+          final key = entry.word.toUpperCase();
+          if (key.isEmpty) continue;
+          map[key] = entry;
         }
       }
     } else {
@@ -177,12 +238,15 @@ class LibraryService {
     }
 
     final words = map.keys.toList()..sort();
+    return _ParsedLibrary(map, List<String>.unmodifiable(words));
+  }
 
+  void _applyParsed(_ParsedLibrary parsed) {
     _byWord
       ..clear()
-      ..addAll(map);
+      ..addAll(parsed.map);
 
-    _allWords = List<String>.unmodifiable(words);
+    _allWords = parsed.words;
   }
 
   int _commonPrefixLen(String a, String b) {
@@ -201,4 +265,10 @@ class LibraryService {
     final d = now.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
+}
+
+class _ParsedLibrary {
+  final Map<String, WordEntry> map;
+  final List<String> words;
+  const _ParsedLibrary(this.map, this.words);
 }
