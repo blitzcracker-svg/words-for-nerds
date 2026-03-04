@@ -13,49 +13,66 @@ class UpdateService {
   UpdateService._();
   static final UpdateService instance = UpdateService._();
 
-  // Pull from your repo's latest release asset (JSONL).
-  // Make sure the release asset is named exactly: library.jsonl
-  static const String _url =
-      'https://github.com/blitzcracker-svg/words-for-nerds/releases/latest/download/library.jsonl';
+  // ✅ Pulls the latest library directly from your repo.
+  // If you update assets/library.json in GitHub, this fetches it.
+  static const String libraryUrl =
+      'https://raw.githubusercontent.com/blitzcracker-svg/words-for-nerds/main/assets/library.json';
+
+  // Hard safety cap so updates can't balloon unexpectedly.
+  static const int _maxBytes = 10 * 1024 * 1024; // 10 MB
 
   Future<UpdateResult> runUpdate() async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
-
     try {
-      final uri = Uri.parse(_url);
+      final uri = Uri.parse(libraryUrl);
 
-      final req = await client.getUrl(uri).timeout(const Duration(seconds: 15));
+      // Basic network safety checks
+      if (uri.scheme != 'https') {
+        return const UpdateResult(false, 'Update blocked: unsafe URL.');
+      }
+      if (uri.host != 'raw.githubusercontent.com') {
+        return const UpdateResult(false, 'Update blocked: untrusted host.');
+      }
+
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+
+      final req = await client.getUrl(uri);
       req.headers.set(HttpHeaders.acceptHeader, 'application/json');
       req.headers.set(HttpHeaders.userAgentHeader, 'words-for-nerds');
 
-      final resp = await req.close().timeout(const Duration(seconds: 30));
+      final resp = await req.close();
 
       if (resp.statusCode != 200) {
-        return UpdateResult(false, 'Update failed (HTTP ${resp.statusCode}).');
+        return UpdateResult(false, 'Update failed: HTTP ${resp.statusCode}.');
       }
 
-      final bytes = await resp.fold<List<int>>(<int>[], (a, b) => a..addAll(b));
-      final body = utf8.decode(bytes);
-
-      // If the download was empty / nonsense, treat as failure.
-      if (body.trim().isEmpty) {
-        return const UpdateResult(false, 'Update failed (empty download).');
+      // Read response with a size limit
+      final chunks = <int>[];
+      await for (final chunk in resp) {
+        chunks.addAll(chunk);
+        if (chunks.length > _maxBytes) {
+          return const UpdateResult(false, 'Update blocked: file too large.');
+        }
       }
 
-      // Load into the in-memory offline library (app stays offline otherwise).
-      LibraryService.instance.loadFromRemoteString(body);
+      final raw = utf8.decode(chunks);
 
+      // Validate it's a JSON array and non-empty
+      final trimmed = raw.trimLeft();
+      if (!trimmed.startsWith('[')) {
+        return const UpdateResult(false, 'Update failed: invalid format.');
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) {
+        return const UpdateResult(false, 'Update failed: empty library.');
+      }
+
+      // Apply + persist (offline after this)
+      await LibraryService.instance.applyUpdatedLibrary(raw);
+
+      client.close(force: true);
       return const UpdateResult(true, 'Update successful.');
-    } on SocketException {
-      return const UpdateResult(false, 'Update failed (no network).');
-    } on TimeoutException {
-      return const UpdateResult(false, 'Update failed (timeout).');
     } catch (_) {
       return const UpdateResult(false, 'Update failed.');
-    } finally {
-      client.close(force: true);
     }
   }
 }
-
-class TimeoutException implements Exception {}
