@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'library_service.dart';
@@ -23,7 +24,7 @@ class UpdateService {
   static const String _releaseLatestUrl =
       'https://github.com/blitzcracker-svg/words-for-nerds/releases/latest/download/library.json';
 
-  // Fallback (still works if you choose to keep the repo asset updated too)
+  // Fallback: raw repo file
   static const String _fallbackRawUrl =
       'https://raw.githubusercontent.com/blitzcracker-svg/words-for-nerds/main/assets/library.json';
 
@@ -32,10 +33,14 @@ class UpdateService {
 
   Future<UpdateResult> runUpdate() async {
     try {
-      final raw = await _downloadText(_releaseLatestUrl).catchError((_) async {
-        // If the Release asset is missing, fall back to the raw file.
-        return await _downloadText(_fallbackRawUrl);
-      });
+      String raw;
+
+      // Try release first, then fallback.
+      try {
+        raw = await _downloadText(_releaseLatestUrl);
+      } catch (_) {
+        raw = await _downloadText(_fallbackRawUrl);
+      }
 
       // Very light validation before we write anything.
       final t = raw.trimLeft();
@@ -61,17 +66,28 @@ class UpdateService {
       throw StateError('Refusing non-https URL');
     }
 
-    final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 10);
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
 
     try {
       final req = await client.getUrl(uri);
+
+      // GitHub releases/latest redirects — be explicit.
+      req.followRedirects = true;
+      req.maxRedirects = 5;
+
       req.headers.set('User-Agent', 'words-for-nerds');
 
       final res = await req.close().timeout(const Duration(seconds: 20));
 
       if (res.statusCode != 200) {
         throw HttpException('HTTP ${res.statusCode}');
+      }
+
+      // Early size check if server provides it.
+      final contentLen = res.contentLength;
+      if (contentLen != -1 && contentLen > _maxBytes) {
+        throw StateError('Download too large');
       }
 
       final bytes = <int>[];
