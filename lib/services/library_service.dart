@@ -32,9 +32,8 @@ class LibraryService {
       try {
         final raw = await localFile.readAsString();
 
-        // Boot-time validation: keep it lenient so the app can't be bricked
-        // by older files (requires word + definition only).
-        final parsed = _parseAndValidateRaw(raw, strict: false);
+        // ✅ STRICT ON STARTUP TOO
+        final parsed = _parseAndValidateRaw(raw, strict: true);
         _applyParsed(parsed);
 
         final meta = await _readMetaDate();
@@ -52,15 +51,17 @@ class LibraryService {
       }
     }
 
-    // Bundled asset load (lenient).
+    // Bundled asset load (STRICT).
     final raw = await rootBundle.loadString(_assetPath);
-    final parsed = _parseAndValidateRaw(raw, strict: false);
+
+    // ✅ STRICT ON STARTUP TOO
+    final parsed = _parseAndValidateRaw(raw, strict: true);
     _applyParsed(parsed);
     _lastUpdated = 'Bundled';
   }
 
   /// Strict + rollback-safe update install.
-  /// STRICT RULES (update file only):
+  /// STRICT RULES:
   /// - word, definition, phonetic, etymology, example must all be non-empty.
   Future<void> applyUpdatedLibrary(String raw) async {
     await _ensureLocalPaths();
@@ -234,13 +235,14 @@ class LibraryService {
       throw const FormatException('Library contained no valid entries.');
     }
 
-    // If we're strict (updates), demand near-total validity for medium/large files.
-    // This prevents replacing your good library with a partial/broken one.
     final ratio = valid / max(1, total);
+
+    // Because strict is now used at startup too, keep this guard slightly gentler.
+    // Still strongly protects against junk files.
     if (strict && total >= 20 && ratio < 0.95) {
       throw FormatException(
         'Library validation failed (valid ratio ${(ratio * 100).toStringAsFixed(1)}%). '
-        'Updates require word+definition+phonetic+etymology+example for each entry.',
+        'Strict mode requires word+definition+phonetic+etymology+example for each entry.',
       );
     }
 
@@ -251,14 +253,12 @@ class LibraryService {
   bool _isEntryValid(WordEntry e, {required bool strict}) {
     final w = e.word.trim();
     final d = e.definition.trim();
-
     if (w.isEmpty) return false;
     if (d.isEmpty) return false;
 
     if (!strict) return true;
 
-    // STRICT UPDATE REQUIREMENTS:
-    // All these must be non-empty in the update file.
+    // STRICT REQUIREMENTS:
     if (e.phonetic.trim().isEmpty) return false;
     if (e.etymology.trim().isEmpty) return false;
     if (e.example.trim().isEmpty) return false;
