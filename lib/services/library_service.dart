@@ -23,7 +23,6 @@ class LibraryService {
 
   // --- Public API ---
 
-  /// Call once at startup.
   Future<void> initFromAsset() async {
     await _ensureLocalPaths();
 
@@ -32,14 +31,14 @@ class LibraryService {
     if (await localFile.exists()) {
       try {
         final raw = await localFile.readAsString();
-        final parsed = _parseRaw(raw);
+        final parsed = _parseAndValidateRaw(raw);
         _applyParsed(parsed);
 
         final meta = await _readMetaDate();
         _lastUpdated = meta ?? 'Updated';
         return;
       } catch (_) {
-        // If local library is corrupt/empty, delete it and fall back to asset.
+        // Corrupt local library → delete and fall back to bundled.
         try {
           await localFile.delete();
         } catch (_) {}
@@ -50,21 +49,19 @@ class LibraryService {
       }
     }
 
-    // Otherwise use bundled asset.
     final raw = await rootBundle.loadString(_assetPath);
-    final parsed = _parseRaw(raw);
+    final parsed = _parseAndValidateRaw(raw);
     _applyParsed(parsed);
     _lastUpdated = 'Bundled';
   }
 
-  /// Used by UpdateService after downloading a new library.
+  /// Strict + rollback-safe update install.
   Future<void> applyUpdatedLibrary(String raw) async {
     await _ensureLocalPaths();
 
-    // Parse first (validation) WITHOUT mutating in-memory state yet.
-    final parsed = _parseRaw(raw);
+    // Parse + strict validation first (no in-memory mutation yet).
+    final parsed = _parseAndValidateRaw(raw);
 
-    // Write temp.
     final targetPath = _localLibraryPath!;
     final tmpPath = '$targetPath.tmp';
     final bakPath = '$targetPath.bak';
@@ -73,55 +70,46 @@ class LibraryService {
     final targetFile = File(targetPath);
     final bakFile = File(bakPath);
 
+    // Write temp file
     await tmpFile.writeAsString(raw, flush: true);
 
-    // Ensure stale backup is gone.
+    // Clean old backup if any
     if (await bakFile.exists()) {
       await bakFile.delete();
     }
 
-    // Swap files with rollback protection.
     try {
+      // Move current live -> backup
       if (await targetFile.exists()) {
         await targetFile.rename(bakPath);
       }
 
+      // Move temp -> live
       await tmpFile.rename(targetPath);
 
-      // Swap in-memory only AFTER the file swap succeeds.
+      // Only now swap in-memory
       _applyParsed(parsed);
 
-      // Save metadata last.
+      // Write metadata last
       _lastUpdated = _todayIso();
       await File(_localMetaPath!)
           .writeAsString(jsonEncode({'lastUpdated': _lastUpdated}), flush: true);
 
-      // Cleanup backup.
+      // Cleanup backup
       if (await bakFile.exists()) {
         await bakFile.delete();
       }
-    } catch (e) {
-      // Roll back file state if possible.
+    } catch (_) {
+      // Rollback file state
       try {
-        if (await targetFile.exists()) {
-          await targetFile.delete();
-        }
+        if (await targetFile.exists()) await targetFile.delete();
       } catch (_) {}
-
       try {
-        if (await bakFile.exists()) {
-          await bakFile.rename(targetPath);
-        }
+        if (await bakFile.exists()) await bakFile.rename(targetPath);
       } catch (_) {}
-
-      // Ensure temp is gone.
-      try {
-        if (await tmpFile.exists()) await tmpFile.delete();
-      } catch (_) {}
-
       rethrow;
     } finally {
-      // Extra temp cleanup (in case rename didn't happen).
+      // Cleanup temp if still present
       try {
         if (await tmpFile.exists()) await tmpFile.delete();
       } catch (_) {}
@@ -141,7 +129,6 @@ class LibraryService {
     return (await _readMetaDate()) ?? 'Bundled';
   }
 
-  /// Suggestions for "WORD NOT FOUND" screen.
   List<String> suggest(String typed, {int limit = 25}) {
     final t = typed.trim().toUpperCase();
     if (t.isEmpty) return const <String>[];
@@ -158,22 +145,18 @@ class LibraryService {
           _commonPrefixLen(w, t) >= min(3, t.length)) {
         hits.add(w);
       }
-
       if (hits.length >= limit) break;
     }
 
     if (hits.length < limit) {
       for (final w in _allWords) {
         if (hits.contains(w)) continue;
-
         if (w.contains(t) || w.startsWith(t) || _commonPrefixLen(w, t) >= 2) {
           hits.add(w);
         }
-
         if (hits.length >= limit) break;
       }
     }
-
     return hits;
   }
 
@@ -202,50 +185,70 @@ class LibraryService {
     }
   }
 
-  _ParsedLibrary _parseRaw(String raw) {
+  _ParsedLibrary _parseAndValidateRaw(String raw) {
     final trimmed = raw.trimLeft();
 
     final Map<String, WordEntry> map = <String, WordEntry>{};
+    int total = 0;
+    int valid = 0;
 
     if (trimmed.startsWith('[')) {
-      // JSON array
       final decoded = jsonDecode(raw);
-      if (decoded is! List) {
-        throw const FormatException('Expected JSON array');
-      }
+      if (decoded is! List) throw const FormatException('Expected JSON array.');
+
       for (final item in decoded) {
-        if (item is Map) {
-          final entry = WordEntry.fromJson(item.cast<String, dynamic>());
-          final key = entry.word.toUpperCase();
-          if (key.isEmpty) continue;
-          map[key] = entry;
+        if (item is! Map) continue;
+        total++;
+
+        final entry = WordEntry.fromJson(item.cast<String, dynamic>());
+        if (_isEntryValid(entry)) {
+          valid++;
+          map[entry.word.toUpperCase()] = entry;
         }
       }
     } else {
-      // JSONL (one JSON per line) – supported if you ever switch later
       final lines = raw.split('\n');
       for (final line in lines) {
         final l = line.trim();
         if (l.isEmpty) continue;
+
+        total++;
         final decoded = jsonDecode(l);
-        if (decoded is Map) {
-          final entry = WordEntry.fromJson(decoded.cast<String, dynamic>());
-          final key = entry.word.toUpperCase();
-          if (key.isEmpty) continue;
-          map[key] = entry;
+        if (decoded is! Map) continue;
+
+        final entry = WordEntry.fromJson(decoded.cast<String, dynamic>());
+        if (_isEntryValid(entry)) {
+          valid++;
+          map[entry.word.toUpperCase()] = entry;
         }
       }
+    }
+
+    if (valid == 0) {
+      throw const FormatException('Library contained no valid entries.');
+    }
+
+    // Require most entries to be valid (prevents replacing with junk).
+    final ratio = valid / max(1, total);
+    if (total >= 20 && ratio < 0.95) {
+      throw FormatException('Library validation failed (valid ratio ${(ratio * 100).toStringAsFixed(1)}%).');
     }
 
     final words = map.keys.toList()..sort();
     return _ParsedLibrary(map, List<String>.unmodifiable(words));
   }
 
+  bool _isEntryValid(WordEntry e) {
+    // Strict but practical: require WORD + DEFINITION.
+    if (e.word.trim().isEmpty) return false;
+    if (e.definition.trim().isEmpty) return false;
+    return true;
+  }
+
   void _applyParsed(_ParsedLibrary parsed) {
     _byWord
       ..clear()
       ..addAll(parsed.map);
-
     _allWords = parsed.words;
   }
 
