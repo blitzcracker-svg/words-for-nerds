@@ -1,20 +1,22 @@
 // lib/main.dart
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'models/word_entry.dart';
 import 'services/library_service.dart';
-import 'services/session_service.dart';
 import 'services/update_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LibraryService.instance.initFromAsset();
 
-  // A2: Restore session from disk (history + filters + last word)
-  await _restoreSessionFromDisk();
+  // Restore saved session (history/settings) before showing UI.
+  await SessionStore.load();
 
   runApp(const WordsForNerdsApp());
 }
@@ -34,6 +36,97 @@ class SessionState {
   static void clearHistoryOnly() {
     history.clear();
     lastWord = null;
+  }
+}
+
+/* ----------------------------- Session Store ----------------------------- */
+/*
+  Saves/restores SessionState across app restarts.
+  - Auto-saves on app background (pause/inactive/detached).
+  - Restores on startup in main().
+*/
+
+class SessionStore {
+  static const String _fileName = 'session_state.json';
+
+  static Future<File> _file() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/$_fileName');
+  }
+
+  static Map<String, dynamic> _toJson() {
+    return {
+      'history': SessionState.history,
+      'lastWord': SessionState.lastWord,
+      'minLetters': SessionState.minLetters,
+      'maxLetters': SessionState.maxLetters,
+      'requiredLetters': SessionState.requiredLetters.toList(),
+    };
+  }
+
+  static void _fromJson(Map<String, dynamic> j) {
+    // History
+    final h = j['history'];
+    SessionState.history
+      ..clear()
+      ..addAll((h is List) ? h.whereType<String>() : const <String>[]);
+
+    // lastWord
+    final lw = j['lastWord'];
+    SessionState.lastWord = (lw is String && lw.trim().isNotEmpty) ? lw : null;
+
+    // min/max
+    final minL = j['minLetters'];
+    final maxL = j['maxLetters'];
+    SessionState.minLetters = (minL is int) ? minL.clamp(1, 45) : 1;
+    SessionState.maxLetters = (maxL is int) ? maxL.clamp(1, 45) : 45;
+    if (SessionState.minLetters > SessionState.maxLetters) {
+      SessionState.maxLetters = SessionState.minLetters;
+    }
+
+    // requiredLetters
+    final rl = j['requiredLetters'];
+    SessionState.requiredLetters.clear();
+    if (rl is List) {
+      for (final v in rl) {
+        if (v is String && v.length == 1) {
+          SessionState.requiredLetters.add(v.toUpperCase());
+        }
+      }
+    }
+  }
+
+  static Future<void> save() async {
+    try {
+      final f = await _file();
+      final raw = jsonEncode(_toJson());
+      final tmp = File('${f.path}.tmp');
+
+      await tmp.writeAsString(raw, flush: true);
+      if (await f.exists()) {
+        await f.delete();
+      }
+      await tmp.rename(f.path);
+    } catch (_) {
+      // Silent fail: never break UX because of persistence.
+    }
+  }
+
+  static Future<void> load() async {
+    try {
+      final f = await _file();
+      if (!await f.exists()) return;
+
+      final raw = await f.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        _fromJson(decoded);
+      } else if (decoded is Map) {
+        _fromJson(decoded.cast<String, dynamic>());
+      }
+    } catch (_) {
+      // If corrupt, ignore.
+    }
   }
 }
 
@@ -257,7 +350,10 @@ class _Frame extends StatelessWidget {
 }
 
 /* ---------------------------------- App ---------------------------------- */
-/* A3: Make app stateful so we can auto-save session on background */
+/*
+  Stateful + lifecycle observer:
+  - auto-saves session when backgrounded
+*/
 
 class WordsForNerdsApp extends StatefulWidget {
   const WordsForNerdsApp({super.key});
@@ -266,8 +362,7 @@ class WordsForNerdsApp extends StatefulWidget {
   State<WordsForNerdsApp> createState() => _WordsForNerdsAppState();
 }
 
-class _WordsForNerdsAppState extends State<WordsForNerdsApp>
-    with WidgetsBindingObserver {
+class _WordsForNerdsAppState extends State<WordsForNerdsApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -282,11 +377,11 @@ class _WordsForNerdsAppState extends State<WordsForNerdsApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // A3: Save on background/inactive
+    // Save on background-ish transitions.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
-      _persistSessionToDisk();
+      SessionStore.save();
     }
   }
 
@@ -354,7 +449,6 @@ class _LaunchScreenState extends State<LaunchScreen> {
 
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    _persistSessionToDisk();
 
     Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
@@ -370,7 +464,6 @@ class _LaunchScreenState extends State<LaunchScreen> {
     if (entry != null) {
       SessionState.lastWord = entry.word;
       if (!SessionState.history.contains(entry.word)) SessionState.history.add(entry.word);
-      _persistSessionToDisk();
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
     } else {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
@@ -456,7 +549,6 @@ class WordScreen extends StatelessWidget {
 
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    _persistSessionToDisk();
 
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
@@ -480,7 +572,6 @@ class WordScreen extends StatelessWidget {
     if (entry != null) {
       SessionState.lastWord = entry.word;
       if (!SessionState.history.contains(entry.word)) SessionState.history.add(entry.word);
-      _persistSessionToDisk();
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
     } else {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
@@ -577,7 +668,6 @@ class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
         SessionState.maxLetters = SessionState.minLetters;
       }
     });
-    _persistSessionToDisk();
   }
 
   void _bumpMax(int delta) {
@@ -587,7 +677,6 @@ class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
         SessionState.minLetters = SessionState.maxLetters;
       }
     });
-    _persistSessionToDisk();
   }
 
   void _toggleLetter(String ch) {
@@ -598,7 +687,6 @@ class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
         SessionState.requiredLetters.add(ch);
       }
     });
-    _persistSessionToDisk();
   }
 
   @override
@@ -711,7 +799,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   void _openWord(String w) {
     SessionState.lastWord = w;
-    _persistSessionToDisk();
     Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
@@ -825,9 +912,7 @@ class _ClearHistoryConfirmScreenState extends State<ClearHistoryConfirmScreen> {
 
   Future<void> _confirmClear() async {
     SessionState.clearHistoryOnly();
-
-    // A4: persist cleared session immediately
-    await _persistSessionToDisk();
+    await SessionStore.save();
 
     await showDialog<void>(
       context: context,
@@ -847,7 +932,10 @@ class _ClearHistoryConfirmScreenState extends State<ClearHistoryConfirmScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OKAY', style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
+              child: const Text(
+                'OKAY',
+                style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent),
+              ),
             ),
           ],
         );
@@ -950,7 +1038,6 @@ class _NoMoreWordsScreenState extends State<NoMoreWordsScreen> {
     if (entry != null) {
       SessionState.lastWord = entry.word;
       if (!SessionState.history.contains(entry.word)) SessionState.history.add(entry.word);
-      _persistSessionToDisk();
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
     } else {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
@@ -962,7 +1049,6 @@ class _NoMoreWordsScreenState extends State<NoMoreWordsScreen> {
     if (w == null) return;
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    _persistSessionToDisk();
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
@@ -1023,7 +1109,6 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
   void _openSuggestion(String w) {
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    _persistSessionToDisk();
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
@@ -1043,7 +1128,6 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
     }
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
-    _persistSessionToDisk();
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
@@ -1058,7 +1142,6 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
     if (entry != null) {
       SessionState.lastWord = entry.word;
       if (!SessionState.history.contains(entry.word)) SessionState.history.add(entry.word);
-      _persistSessionToDisk();
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
     } else {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
@@ -1182,9 +1265,9 @@ class _CloseAppScreenState extends State<CloseAppScreen> {
   }
 
   void _reallyClose() {
-    // A4: Clear session-only history on intentional close + wipe saved session file.
+    // Clear session-only history on intentional close.
     SessionState.clearHistoryOnly();
-    SessionService.instance.clear();
+    SessionStore.save();
     SystemNavigator.pop();
   }
 
@@ -1297,7 +1380,7 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
   Widget build(BuildContext context) {
     return _Frame(
       title: 'DOWNLOADING & INSTALLING WORDS',
-      showCloseApp: false, // only screen with no close app button
+      showCloseApp: false,
       children: [
         Center(child: Text(_phrase, style: _mutedStyle(), textAlign: TextAlign.center)),
         const SizedBox(height: 24),
@@ -1454,55 +1537,4 @@ String? _pickRandomAllowedWord() {
 
   if (candidates.isEmpty) return null;
   return candidates[_rng.nextInt(candidates.length)];
-}
-
-/* ------------------------------ A2 Helpers ------------------------------ */
-
-Map<String, dynamic> _snapshotSession() {
-  return {
-    'history': SessionState.history,
-    'lastWord': SessionState.lastWord,
-    'minLetters': SessionState.minLetters,
-    'maxLetters': SessionState.maxLetters,
-    'requiredLetters': SessionState.requiredLetters.toList(),
-  };
-}
-
-Future<void> _persistSessionToDisk() async {
-  await SessionService.instance.save(_snapshotSession());
-}
-
-Future<void> _restoreSessionFromDisk() async {
-  final data = await SessionService.instance.load();
-  if (data == null) return;
-
-  try {
-    final hist = (data['history'] as List?)?.cast<String>() ?? <String>[];
-    final last = data['lastWord'] as String?;
-    final minL = (data['minLetters'] as int?) ?? 1;
-    final maxL = (data['maxLetters'] as int?) ?? 45;
-    final req = (data['requiredLetters'] as List?)?.cast<String>() ?? <String>[];
-
-    SessionState.history
-      ..clear()
-      ..addAll(hist.map((e) => e.toUpperCase()).where((e) => e.isNotEmpty));
-
-    SessionState.minLetters = minL.clamp(1, 45);
-    SessionState.maxLetters = maxL.clamp(1, 45);
-    if (SessionState.minLetters > SessionState.maxLetters) {
-      SessionState.maxLetters = SessionState.minLetters;
-    }
-
-    SessionState.requiredLetters
-      ..clear()
-      ..addAll(req.map((e) => e.toUpperCase()).where((e) => e.length == 1));
-
-    final all = LibraryService.instance.allWords.toSet();
-    final normalizedLast = last?.trim().toUpperCase();
-    SessionState.lastWord = (normalizedLast != null && all.contains(normalizedLast))
-        ? normalizedLast
-        : null;
-  } catch (_) {
-    // Ignore malformed saved session; keep defaults.
-  }
 }
