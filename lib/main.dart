@@ -257,9 +257,38 @@ class _Frame extends StatelessWidget {
 }
 
 /* ---------------------------------- App ---------------------------------- */
+/* A3: Make app stateful so we can auto-save session on background */
 
-class WordsForNerdsApp extends StatelessWidget {
+class WordsForNerdsApp extends StatefulWidget {
   const WordsForNerdsApp({super.key});
+
+  @override
+  State<WordsForNerdsApp> createState() => _WordsForNerdsAppState();
+}
+
+class _WordsForNerdsAppState extends State<WordsForNerdsApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // A3: Save on background/inactive
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _persistSessionToDisk();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -325,6 +354,7 @@ class _LaunchScreenState extends State<LaunchScreen> {
 
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
+    _persistSessionToDisk();
 
     Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
@@ -340,6 +370,7 @@ class _LaunchScreenState extends State<LaunchScreen> {
     if (entry != null) {
       SessionState.lastWord = entry.word;
       if (!SessionState.history.contains(entry.word)) SessionState.history.add(entry.word);
+      _persistSessionToDisk();
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
     } else {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
@@ -425,6 +456,7 @@ class WordScreen extends StatelessWidget {
 
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
+    _persistSessionToDisk();
 
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
@@ -448,6 +480,7 @@ class WordScreen extends StatelessWidget {
     if (entry != null) {
       SessionState.lastWord = entry.word;
       if (!SessionState.history.contains(entry.word)) SessionState.history.add(entry.word);
+      _persistSessionToDisk();
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
     } else {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
@@ -544,6 +577,7 @@ class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
         SessionState.maxLetters = SessionState.minLetters;
       }
     });
+    _persistSessionToDisk();
   }
 
   void _bumpMax(int delta) {
@@ -553,6 +587,7 @@ class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
         SessionState.minLetters = SessionState.maxLetters;
       }
     });
+    _persistSessionToDisk();
   }
 
   void _toggleLetter(String ch) {
@@ -563,6 +598,7 @@ class _RandomizerSettingsScreenState extends State<RandomizerSettingsScreen> {
         SessionState.requiredLetters.add(ch);
       }
     });
+    _persistSessionToDisk();
   }
 
   @override
@@ -675,6 +711,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   void _openWord(String w) {
     SessionState.lastWord = w;
+    _persistSessionToDisk();
     Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
@@ -788,6 +825,9 @@ class _ClearHistoryConfirmScreenState extends State<ClearHistoryConfirmScreen> {
 
   Future<void> _confirmClear() async {
     SessionState.clearHistoryOnly();
+
+    // A4: persist cleared session immediately
+    await _persistSessionToDisk();
 
     await showDialog<void>(
       context: context,
@@ -910,6 +950,7 @@ class _NoMoreWordsScreenState extends State<NoMoreWordsScreen> {
     if (entry != null) {
       SessionState.lastWord = entry.word;
       if (!SessionState.history.contains(entry.word)) SessionState.history.add(entry.word);
+      _persistSessionToDisk();
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
     } else {
       Navigator.push(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
@@ -921,6 +962,7 @@ class _NoMoreWordsScreenState extends State<NoMoreWordsScreen> {
     if (w == null) return;
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
+    _persistSessionToDisk();
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
@@ -981,6 +1023,7 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
   void _openSuggestion(String w) {
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
+    _persistSessionToDisk();
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
@@ -1000,6 +1043,7 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
     }
     SessionState.lastWord = w;
     if (!SessionState.history.contains(w)) SessionState.history.add(w);
+    _persistSessionToDisk();
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: w)));
   }
 
@@ -1014,6 +1058,7 @@ class _WordNotFoundScreenState extends State<WordNotFoundScreen> {
     if (entry != null) {
       SessionState.lastWord = entry.word;
       if (!SessionState.history.contains(entry.word)) SessionState.history.add(entry.word);
+      _persistSessionToDisk();
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordScreen(word: entry.word)));
     } else {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WordNotFoundScreen(typed: upper)));
@@ -1137,8 +1182,9 @@ class _CloseAppScreenState extends State<CloseAppScreen> {
   }
 
   void _reallyClose() {
-    // Clear session-only history on intentional close.
+    // A4: Clear session-only history on intentional close + wipe saved session file.
     SessionState.clearHistoryOnly();
+    SessionService.instance.clear();
     SystemNavigator.pop();
   }
 
@@ -1251,7 +1297,7 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
   Widget build(BuildContext context) {
     return _Frame(
       title: 'DOWNLOADING & INSTALLING WORDS',
-      showCloseApp: false,
+      showCloseApp: false, // only screen with no close app button
       children: [
         Center(child: Text(_phrase, style: _mutedStyle(), textAlign: TextAlign.center)),
         const SizedBox(height: 24),
@@ -1367,13 +1413,11 @@ Future<String?> _promptForWord(BuildContext context) async {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('CANCEL',
-                style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
+            child: const Text('CANCEL', style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('SEARCH',
-                style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
+            child: const Text('SEARCH', style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
           ),
         ],
       );
