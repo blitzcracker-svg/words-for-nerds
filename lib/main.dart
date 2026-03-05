@@ -286,7 +286,6 @@ class LaunchScreen extends StatefulWidget {
 class _LaunchScreenState extends State<LaunchScreen> {
   late final String _face;
   late final String _greeting;
-  late final String _quote;
 
   static const _faces = <String>[
     '(≧▽≦)',
@@ -305,20 +304,11 @@ class _LaunchScreenState extends State<LaunchScreen> {
     'ENTER, FRIEND OF NUANCE.',
   ];
 
-  static const _quotes = <String>[
-    '"Words are small machines for moving thought."',
-    '"Vocabulary grows where curiosity lingers."',
-    '"Meaning is slippery; that is why this is fun."',
-    '"Precision is power, disguised as syllables."',
-    '"One word at a time: the inner world upgrades."',
-  ];
-
   @override
   void initState() {
     super.initState();
     _face = _pick(_faces);
     _greeting = _pick(_greetings);
-    _quote = _pick(_quotes);
   }
 
   void _goRandomWord() {
@@ -366,8 +356,6 @@ class _LaunchScreenState extends State<LaunchScreen> {
       face: _face,
       children: [
         Center(child: Text(_greeting, style: _mutedStyle(), textAlign: TextAlign.center)),
-        const SizedBox(height: 10),
-        Center(child: Text(_quote, style: _mutedStyle(), textAlign: TextAlign.center)),
         const SizedBox(height: 22),
 
         _Btn('CLICK HERE FOR A RANDOM WORD', onTap: _goRandomWord),
@@ -472,8 +460,6 @@ class WordScreen extends StatelessWidget {
       children: [
         _Btn('LISTEN TO WORD', onTap: () => _speak(context, title)),
         const SizedBox(height: 22),
-
-        // ✅ DICTIONARY SECTION REMOVED HERE
 
         Text('PHONETIC PRONUNCIATION', style: _sectionHeaderStyle()),
         const SizedBox(height: 6),
