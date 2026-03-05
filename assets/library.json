@@ -295,4 +295,4 @@ class _ParsedLibrary {
   final Map<String, WordEntry> map;
   final List<String> words;
   const _ParsedLibrary(this.map, this.words);
-      }
+}
