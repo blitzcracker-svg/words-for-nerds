@@ -6,11 +6,16 @@ import 'package:flutter/services.dart';
 
 import 'models/word_entry.dart';
 import 'services/library_service.dart';
+import 'services/session_service.dart';
 import 'services/update_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LibraryService.instance.initFromAsset();
+
+  // A2: Restore session from disk (history + filters + last word)
+  await _restoreSessionFromDisk();
+
   runApp(const WordsForNerdsApp());
 }
 
@@ -383,7 +388,6 @@ class _LaunchScreenState extends State<LaunchScreen> {
 String _prettyDate(String raw) {
   if (raw.isEmpty) return 'BUNDLED';
   if (raw.toLowerCase() == 'bundled') return 'BUNDLED';
-  // if ISO date-time, show YYYY-MM-DD
   if (raw.length >= 10 && raw[4] == '-' && raw[7] == '-') return raw.substring(0, 10);
   return raw.toUpperCase();
 }
@@ -1143,7 +1147,7 @@ class _CloseAppScreenState extends State<CloseAppScreen> {
     return _Frame(
       title: 'CLOSE APP',
       face: _face,
-      onCloseTap: _reallyClose, // bottom-right CLOSE APP now closes for real
+      onCloseTap: _reallyClose,
       children: [
         Center(child: Text(_phrase, style: _mutedStyle(), textAlign: TextAlign.center)),
         const SizedBox(height: 18),
@@ -1247,7 +1251,7 @@ class _UpdateInProgressScreenState extends State<UpdateInProgressScreen> {
   Widget build(BuildContext context) {
     return _Frame(
       title: 'DOWNLOADING & INSTALLING WORDS',
-      showCloseApp: false, // only screen with no close app button
+      showCloseApp: false,
       children: [
         Center(child: Text(_phrase, style: _mutedStyle(), textAlign: TextAlign.center)),
         const SizedBox(height: 24),
@@ -1363,11 +1367,13 @@ Future<String?> _promptForWord(BuildContext context) async {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('CANCEL', style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
+            child: const Text('CANCEL',
+                style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('SEARCH', style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
+            child: const Text('SEARCH',
+                style: TextStyle(fontFamily: 'Times New Roman', color: _Theme.accent)),
           ),
         ],
       );
@@ -1404,4 +1410,55 @@ String? _pickRandomAllowedWord() {
 
   if (candidates.isEmpty) return null;
   return candidates[_rng.nextInt(candidates.length)];
+}
+
+/* ------------------------------ A2 Helpers ------------------------------ */
+
+Map<String, dynamic> _snapshotSession() {
+  return {
+    'history': SessionState.history,
+    'lastWord': SessionState.lastWord,
+    'minLetters': SessionState.minLetters,
+    'maxLetters': SessionState.maxLetters,
+    'requiredLetters': SessionState.requiredLetters.toList(),
+  };
+}
+
+Future<void> _persistSessionToDisk() async {
+  await SessionService.instance.save(_snapshotSession());
+}
+
+Future<void> _restoreSessionFromDisk() async {
+  final data = await SessionService.instance.load();
+  if (data == null) return;
+
+  try {
+    final hist = (data['history'] as List?)?.cast<String>() ?? <String>[];
+    final last = data['lastWord'] as String?;
+    final minL = (data['minLetters'] as int?) ?? 1;
+    final maxL = (data['maxLetters'] as int?) ?? 45;
+    final req = (data['requiredLetters'] as List?)?.cast<String>() ?? <String>[];
+
+    SessionState.history
+      ..clear()
+      ..addAll(hist.map((e) => e.toUpperCase()).where((e) => e.isNotEmpty));
+
+    SessionState.minLetters = minL.clamp(1, 45);
+    SessionState.maxLetters = maxL.clamp(1, 45);
+    if (SessionState.minLetters > SessionState.maxLetters) {
+      SessionState.maxLetters = SessionState.minLetters;
+    }
+
+    SessionState.requiredLetters
+      ..clear()
+      ..addAll(req.map((e) => e.toUpperCase()).where((e) => e.length == 1));
+
+    final all = LibraryService.instance.allWords.toSet();
+    final normalizedLast = last?.trim().toUpperCase();
+    SessionState.lastWord = (normalizedLast != null && all.contains(normalizedLast))
+        ? normalizedLast
+        : null;
+  } catch (_) {
+    // Ignore malformed saved session; keep defaults.
+  }
 }
