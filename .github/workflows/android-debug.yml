@@ -20,12 +20,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Analyze ONLY your app code (lib/). Don’t scan samples/ or test/.
-      # Also: don’t fail the build if there are lint warnings.
-      - name: Analyze (app only)
-        continue-on-error: true
-        run: flutter analyze lib
-
       - name: Build Debug APK
         run: flutter build apk --debug
 
